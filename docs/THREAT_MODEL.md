@@ -105,3 +105,42 @@ general limits in the next section.
 | 15 Inflation probe | Provider-side output lengthening ([arXiv:2609.20370](https://arxiv.org/abs/2609.20370)) | A length-inducing probe adds far fewer tokens than it does on normal service | Misreported token counts without longer text; misreported hidden reasoning tokens (see below); inflation on a small fraction of requests. |
 | 16 Upstream map | Hidden shared backends between endpoints ([arXiv:2608.20732](https://arxiv.org/abs/2608.20732)) | A prompt cached through one endpoint is reported as a cache hit through another | Endpoints whose upstream has no prefix cache or reports no cached-token count; sharing below the measurement resolution; a relay that zeroes the cached-token field. |
 | 17 Identity test | Model substitution | Tool-choice distribution ([arXiv:2609.00052](https://arxiv.org/abs/2609.00052)) and rank uniformity of responses ([arXiv:2506.06975](https://arxiv.org/abs/2506.06975)) against the same model on the trusted reference | Substitution on a small fraction of requests; a substitute tuned to imitate the reference on these probes; any model for which no trusted reference exists. |
+
+## Limits that apply to every step
+
+1. **A report is not a safety certificate.** A relay that passes every step
+   has passed these probes, on these requests, at this time.
+2. **Conditional behaviour.** A relay can recognise audit traffic, or act on
+   one request in a thousand. Receipt reduces this risk (ordinary-looking
+   probes, randomised order) but cannot remove it.
+3. **Reported numbers are the relay's numbers.** Token counts, cached-token
+   counts, model names and ids are whatever the relay returns. A step that
+   relies on them says so, and says in which direction a lie would bias it.
+4. **Hidden reasoning tokens cannot be audited black-box.** When a model's
+   reasoning is not returned, the user sees only a count. The sequential
+   audit of [arXiv:2510.05181](https://arxiv.org/abs/2510.05181) needs the
+   output text and access to the model's next-token probabilities, and its
+   authors argue that some form of model access is necessary for any
+   effective audit of reported tokens. Receipt has neither, and
+   [arXiv:2605.30040](https://arxiv.org/abs/2605.30040) shows that audits
+   built on provider-supplied evidence can be evaded with large inflation.
+   Receipt therefore does not claim to detect misreported hidden reasoning
+   tokens, and every report that includes Step 15 says so.
+5. **Statistical tests have error rates.** Steps 15, 16 and 17 state their
+   false-positive rate. A rejection at the 5% level will happen by chance
+   on about one honest endpoint in twenty.
+6. **The reference is trusted by assumption.** If the trusted reference
+   itself changes the model or the prompt, Steps 3 and 17 will blame the
+   relay.
+7. **Attribution is out of scope.** Receipt reports what was observed at an
+   endpoint. It does not say who caused it, whether it was deliberate, or
+   which party in a resale chain is responsible.
+
+## Responsible use
+
+- Receipt is for auditing endpoints you are a customer of, with your own
+  key, at request rates their terms allow.
+- Probe prompts are synthetic. Receipt never sends other people's data.
+- Results that name a real provider are not published from this repository
+  without first contacting that provider. See [SECURITY.md](../SECURITY.md)
+  once it exists; until then the rule is: do not publish.
