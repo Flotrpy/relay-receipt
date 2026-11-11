@@ -273,3 +273,92 @@ marker weights per channel and takes the maximum, capped at 1.0. A channel
 is named only at confidence 0.5 or more. Verdict is always
 `informational`, or `inconclusive` if no authenticated response was
 obtained.
+
+## New steps
+
+### Step 15: Inflation probe
+
+From [arXiv:2609.20370](https://arxiv.org/abs/2609.20370), unchanged.
+Design: [steps/15-inflation.md](./steps/15-inflation.md).
+
+| Setting | Value |
+|---|---|
+| Questions `n` | 20 |
+| Relative-gain threshold `tau` | 0.60 |
+| Top-`k` | 3 |
+| Decision threshold `H` | 3 |
+| Request settings | temperature 0, `max_tokens = 1024` |
+| Block size | 5 questions |
+| Minimum valid pairs for `clean` | 16 |
+
+| Condition | Verdict |
+|---|---|
+| `S >= 3` at a block boundary | `anomaly` |
+| Full run, at least 16 valid pairs, `S < 3` | `clean` |
+| Otherwise | `inconclusive` |
+
+### Step 16: Upstream map
+
+From [arXiv:2608.20732](https://arxiv.org/abs/2608.20732). Design:
+[steps/16-upstream-map.md](./steps/16-upstream-map.md).
+
+| Parameter | `paper` | `coarse` |
+|---|---|---|
+| Resolution `delta` | 0.05 | 0.20 |
+| `alpha` per direction | 0.05 | 0.05 |
+| `N_flood` | 59 | 14 |
+| `M_contain` | 4 | 2 |
+| `N_prove` | 181 | 30 |
+| `M_partial` | 15 | 11 |
+| `M_nohit` | 59 | 14 |
+| `L_probe` | 59 | 14 |
+| Flood attempt cap `A_max` | 1000 | 250 |
+| Consecutive error cap `E_abort` | 8 | 8 |
+| Keep-warm workers | 2 | 2 |
+| Keep-warm interval | 20 s per worker | 20 s per worker |
+
+| Setting | Value |
+|---|---|
+| Base prefix length | 1 280 tokens (above the common 1 024-token cache minimum) |
+| Default cache chunk `b` when the provider documents none | 128 tokens, replaced by the calibrated value when larger |
+| Prefix stride | `2 x b` tokens |
+| Hit | `cached_tokens >= prompt_tokens - b` |
+| Calibration attempts | 3 |
+| Default preset | `coarse` |
+
+| Condition | Verdict |
+|---|---|
+| At least one pair classified (any relation except `inconclusive`) | `informational` |
+| Every pair is `inconclusive` | `inconclusive` |
+
+### Step 17: Identity test
+
+Design: [steps/17-identity.md](./steps/17-identity.md).
+
+| Setting | Value |
+|---|---|
+| Templates `K` (component A) | 20 |
+| Samples per template per batch, each side | 5 |
+| Component A request settings | temperature 0.7, `max_tokens = 256` |
+| Prompts per batch (component B) | 10 |
+| Reference samples per prompt `m` | 10 |
+| Component B request settings | temperature 0.5, `max_tokens = 30` |
+| Permutations / simulations `B` | 4 999 |
+| p-to-e calibrator | `(1 - p + p ln p) / (p (ln p)^2)`, `e(1) = 1/2` |
+| Combination | arithmetic mean of the two components' e-value products |
+| Rejection threshold | `E >= 20` (`1 / alpha`) |
+| Maximum batches | 2 in `general`, 5 in `full` |
+| Batch validity, component A | at least 4 of 5 valid samples per side in at least 16 of 20 templates |
+| Batch validity, component B | at least 8 of 10 prompts with an endpoint reply and at least 8 of 10 reference replies |
+
+| Condition | Outcome | Verdict |
+|---|---|---|
+| `E >= 20` at a batch boundary | `different` | `anomaly` |
+| Maximum batches done, `E < 20`, at least 2 valid batches in at least one component | `same` | `clean` |
+| Otherwise | `insufficient_data` | `inconclusive` |
+
+## Change log
+
+| Date | Change | Reason |
+|---|---|---|
+| 2026-11-10 | Initial values | Fixed before any implementation or endpoint test. |
