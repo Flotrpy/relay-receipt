@@ -52,13 +52,18 @@ pub fn rating_does_not_depend_on_step_order_test() {
 pub fn low_implies_no_rated_step_is_undecided_or_anomalous_test() {
   use results <- qcheck.given(run_generator())
   case rating.rate(results).risk {
-    Low ->
+    Low -> {
+      // LOW needs at least one rated step to have run.
+      assert list.any(results, fn(r) {
+        list.contains([3, 4, 5, 7, 8, 9, 10, 15, 17], r.id)
+      })
       list.each(results, fn(r) {
         let rated = list.contains([3, 4, 5, 7, 8, 9, 10, 15, 17], r.id)
         assert !{
           rated && { r.verdict == Anomaly || r.verdict == Inconclusive }
         }
       })
+    }
     _ -> Nil
   }
 }

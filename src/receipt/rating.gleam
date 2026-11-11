@@ -23,6 +23,8 @@ pub fn rate(results: List(StepResult)) -> Rating {
   let medium_leak = list.filter(results, is_medium_leak)
   let undecided = list.filter(results, is_rated_inconclusive)
   let crashed = list.filter(results, fn(r) { r.crashed })
+  let any_rated_ran =
+    list.any(results, fn(r) { r.status == Run && catalog.is_rated(r.id) })
 
   case critical, major, medium_leak, undecided, crashed {
     [_, ..], _, _, _, _ ->
@@ -40,7 +42,14 @@ pub fn rate(results: List(StepResult)) -> Rating {
         4,
         list.map(medium_leak, describe("anomaly of medium severity")),
       )
-    [], [], [], [], [] -> Rating(Low, 6, [])
+    [], [], [], [], [] ->
+      case any_rated_ran {
+        True -> Rating(Low, 6, [])
+        False ->
+          Rating(MediumRisk, 5, [
+            "No rated step ran, so nothing supports a lower rating.",
+          ])
+      }
     [], [], [], _, _ ->
       Rating(
         MediumRisk,

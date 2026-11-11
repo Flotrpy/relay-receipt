@@ -35,8 +35,25 @@ pub fn all_clean_is_low_test() {
   assert reasons == []
 }
 
-pub fn empty_run_is_low_by_rule_six_test() {
-  assert rating.rate([]) == Rating(Low, 6, [])
+pub fn a_run_that_tested_nothing_is_not_low_test() {
+  let Rating(risk, rule, reasons) = rating.rate([])
+  assert risk == MediumRisk
+  assert rule == 5
+  assert reasons == ["No rated step ran, so nothing supports a lower rating."]
+}
+
+pub fn only_unrated_steps_running_is_not_low_test() {
+  let results = [
+    step.ran(1, Informational, "x"),
+    step.inconclusive(2, "no_format", "x"),
+    step.not_run(3, verdict.Skipped, "no_connectivity"),
+    step.not_run(8, verdict.Skipped, "no_connectivity"),
+  ]
+  assert rating.rate(results).risk == MediumRisk
+}
+
+pub fn one_clean_rated_step_is_enough_for_low_test() {
+  assert rating.rate([step.ran(3, Clean, "x")]).risk == Low
 }
 
 pub fn critical_anomaly_is_high_alone_test() {

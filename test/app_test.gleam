@@ -125,7 +125,7 @@ pub fn render_follows_the_requested_format_test() {
 }
 
 pub fn exit_code_is_zero_unless_fail_on_is_reached_test() {
-  let low = finished_report([])
+  let low = finished_report([#(3, fn(_) { step.ran(3, Clean, "x") })])
   let medium = finished_report([#(3, fn(_) { step.ran(3, Anomaly, "x") })])
   let high = finished_report([#(8, fn(_) { step.ran(8, Anomaly, "x") })])
   assert app.exit_code(high, None) == 0

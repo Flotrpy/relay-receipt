@@ -54,10 +54,10 @@ First matching rule wins.
 | 2 | Two or more major-class steps have verdict `anomaly` | `HIGH` |
 | 3 | Exactly one major-class step has verdict `anomaly` | `MEDIUM` |
 | 4 | Step 9 has verdict `anomaly` with severity `medium` | `MEDIUM` |
-| 5 | Any rated step has status `run` and verdict `inconclusive`, or any step crashed | `MEDIUM` |
+| 5 | Any rated step has status `run` and verdict `inconclusive`, or any step crashed, or no rated step has status `run` | `MEDIUM` |
 | 6 | Otherwise | `LOW` |
 
-`LOW` means no rule above matched for the steps that ran. It is not a
+`LOW` means at least one rated step ran and no rule above matched. It is not a
 statement that the relay is safe. Rated steps that did not run are listed
 under coverage in every report.
 
@@ -362,3 +362,4 @@ Design: [steps/17-identity.md](./steps/17-identity.md).
 | Date | Change | Reason |
 |---|---|---|
 | 2026-11-10 | Initial values | Fixed before any implementation or endpoint test. |
+| 2026-11-11 | Rating rule 5 also matches when no rated step ran | Found while wiring the pipeline, before any validation run: an endpoint that answers no chat request had every rated step skipped and would have been rated `LOW`. A run that tested nothing must not look like a run that found nothing. |
