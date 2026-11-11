@@ -22,3 +22,28 @@ phase. The format follows [Keep a Changelog](https://keepachangelog.com/).
 - `docs/TRACE_FORMAT.md`: JSONL record/replay format with mandatory key
   redaction.
 - `docs/REPORT_SCHEMA.md`: JSON report schema v1 and Markdown layout.
+
+### Phase B: core infrastructure
+
+- Gleam project scaffold; `receipt` escript built with `gleescript`.
+- Closed verdict, status, severity and class types; step result type whose
+  constructors make "not run" imply "inconclusive".
+- Step catalog and the first-match rating engine, with property tests for
+  monotonicity and order independence.
+- Environment-only key handling with redaction to a same-length stand-in.
+- Seeded SplitMix64 generator for reproducible shuffles and permutations.
+- Monotonic clock; UTC timestamps for reports.
+- HTTP transport over OTP `httpc` (ADR 0002): TLS verification always on,
+  proxy and CA from the environment, per-chunk arrival times.
+- Incremental server-sent events parser, independent of chunk boundaries.
+- OpenAI-compatible and Anthropic-compatible adapters behind one chat front.
+- JSONL trace codec, redaction, recorder and strict replayer.
+- Retry policy with full-jitter backoff; client with per-endpoint pacing,
+  per-step request counts and rate-limit give-up.
+- Configuration, profiles and a pure command-line parser that refuses keys
+  as arguments.
+- Report model with standing limits; JSON (schema v1) and Markdown
+  reporters, with tests on report wording.
+- Step runner with gating and per-step crash isolation.
+- `receipt/thresholds`: one module of pre-registered cut-offs, checked
+  against `docs/THRESHOLDS.md` by a test.
