@@ -8,7 +8,7 @@ import gleam/erlang/process.{type Subject}
 import gleam/otp/actor
 import gleam/result
 import receipt/secret.{type Secret}
-import receipt/trace/codec.{type Exchange, type Header}
+import receipt/trace/codec.{type Exchange, type Header, Observation}
 import receipt/trace/redact
 import simplifile
 
@@ -19,6 +19,7 @@ pub opaque type Recorder {
 type Message {
   NextSeq(reply: Subject(Int))
   Write(exchange: Exchange)
+  Observe(step: Int, key: String, value: String)
   Sync(reply: Subject(Int))
 }
 
@@ -63,6 +64,21 @@ fn handle(state: State, message: Message) -> actor.Next(State, Message) {
         Error(_) -> actor.continue(state)
       }
     }
+    Observe(step, key, value) -> {
+      let line =
+        Observation(
+          seq: state.next_seq,
+          step: step,
+          key: redact.text(key, state.secrets),
+          value: redact.text(value, state.secrets),
+        )
+        |> codec.encode_observation
+      let state = State(..state, next_seq: state.next_seq + 1)
+      case simplifile.append(state.path, line <> "\n") {
+        Ok(Nil) -> actor.continue(State(..state, written: state.written + 1))
+        Error(_) -> actor.continue(state)
+      }
+    }
     Sync(reply) -> {
       process.send(reply, state.written)
       actor.continue(state)
@@ -80,8 +96,18 @@ pub fn write(recorder: Recorder, exchange: Exchange) -> Nil {
   process.send(recorder.subject, Write(exchange))
 }
 
+/// Record a non-HTTP lookup.
+pub fn observe(
+  recorder: Recorder,
+  step: Int,
+  key: String,
+  value: String,
+) -> Nil {
+  process.send(recorder.subject, Observe(step, key, value))
+}
+
 /// Wait until everything sent so far is on disk. Returns the number of
-/// exchange lines written.
+/// lines written after the header.
 pub fn sync(recorder: Recorder) -> Int {
   process.call(recorder.subject, 30_000, Sync)
 }

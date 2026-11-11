@@ -175,3 +175,24 @@ pub fn match_key_ignores_headers_test() {
   assert replayer.match_key("t", a)
     != replayer.match_key("t", Request(..a, body: "x"))
 }
+
+pub fn observations_are_recorded_redacted_and_replayed_test() {
+  let path = temp_path("observation.trace.jsonl")
+  let assert Ok(rec) = recorder.start(path, header(), [secret.from_string(key)])
+  recorder.observe(rec, 1, "dns:relay.test", "A 203.0.113.7")
+  recorder.observe(rec, 1, "leaky", "saw " <> key)
+  assert recorder.sync(rec) == 2
+  let assert Ok(text) = simplifile.read(path)
+  assert !string.contains(text, "abcdefgh")
+  let assert Ok(rep) = replayer.load(path)
+  assert replayer.observation(rep, 1, "dns:relay.test") == "A 203.0.113.7"
+  assert replayer.observation(rep, 1, "tls:relay.test") == replayer.not_recorded
+  assert replayer.observation(rep, 2, "dns:relay.test") == replayer.not_recorded
+}
+
+pub fn observation_line_round_trips_test() {
+  let observation =
+    codec.Observation(4, 1, "tls:host", "subject CN=host\nissuer X")
+  assert codec.decode_line(codec.encode_observation(observation))
+    == Ok(codec.ObservationLine(observation))
+}

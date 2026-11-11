@@ -182,6 +182,27 @@ pub fn attempt(
   result
 }
 
+/// A non-HTTP lookup such as a DNS query. Live: run it and record the
+/// text. Replay: serve the recorded text. Function-driven nets run it.
+pub fn observe(
+  net: Net,
+  step: Int,
+  key: String,
+  lookup: fn() -> String,
+) -> String {
+  case net.mode {
+    Replay(replayer) -> replayer.observation(replayer, step, key)
+    Live | Custom(_) -> {
+      let value = lookup()
+      case net.recorder {
+        Some(recorder) -> recorder.observe(recorder, step, key, value)
+        None -> Nil
+      }
+      value
+    }
+  }
+}
+
 /// Send with the retry policy of `docs/THRESHOLDS.md`. Each attempt is its
 /// own recorded exchange.
 pub fn send(

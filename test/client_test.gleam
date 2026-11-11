@@ -161,3 +161,23 @@ pub fn live_requests_are_paced_per_endpoint_test() {
   // The third request went to another endpoint, so it did not wait again.
   assert elapsed_ms < 390
 }
+
+pub fn observations_are_looked_up_live_and_served_from_a_trace_test() {
+  let _ = simplifile.create_directory_all("build/test-tmp")
+  let path = "build/test-tmp/client_observe.trace.jsonl"
+  let assert Ok(rec) = recorder.start(path, Header("0.1.0", "t", 1, []), [])
+  let net = client.custom(fn(_, _) { Error(Timeout) }, Some(rec))
+  assert client.observe(net, 1, "dns:x", fn() { "A 192.0.2.1" })
+    == "A 192.0.2.1"
+  client.sync(net)
+  let assert Ok(rep) = replayer.load(path)
+  let replay_net = client.replay(rep)
+  assert client.observe(replay_net, 1, "dns:x", fn() {
+      panic as "no live lookup"
+    })
+    == "A 192.0.2.1"
+  assert client.observe(replay_net, 1, "dns:y", fn() {
+      panic as "no live lookup"
+    })
+    == replayer.not_recorded
+}

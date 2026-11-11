@@ -64,6 +64,23 @@ Format name: `receipt-trace`, version `1`. Encoding: UTF-8
 
 All times come from Erlang's monotonic clock, never the system clock.
 
+### `observation` (one per non-HTTP lookup)
+
+Step 1 looks at DNS records and the TLS certificate, which are not HTTP
+exchanges. Each lookup is stored as a named text value so that a replay
+sees the same facts.
+
+```json
+{"type":"observation","seq":2,"step":1,"key":"dns:relay.example",
+ "value":"A 203.0.113.7\nNS ns1.example.net"}
+```
+
+| Field | Meaning |
+|---|---|
+| `seq` | Shares the numbering of exchanges. |
+| `key` | What was looked up. Replay matches on `step` and `key`. |
+| `value` | The result as text, already redacted. A failed lookup is recorded as its error text. |
+
 ## Redaction
 
 A trace must be safe to commit as a test fixture.
@@ -94,6 +111,8 @@ synthetic.
   order.
 - A request with no matching exchange fails the run with a `trace_miss`
   error. It is never retried and never falls back to the network.
+- An observation with no recorded value is served as the text
+  `not recorded in this trace`; it never triggers a live lookup.
 - Timings are served from the trace. Waits (pacing, back-off, keep-warm
   intervals) return immediately.
 - Retries are replayed as recorded: each attempt is its own exchange.

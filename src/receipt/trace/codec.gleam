@@ -44,9 +44,15 @@ pub type Exchange {
   )
 }
 
+/// A non-HTTP lookup, such as a DNS query, stored as text.
+pub type Observation {
+  Observation(seq: Int, step: Int, key: String, value: String)
+}
+
 pub type Line {
   HeaderLine(Header)
   ExchangeLine(Exchange)
+  ObservationLine(Observation)
 }
 
 pub type DecodeError {
@@ -69,6 +75,17 @@ pub fn encode_header(header: Header) -> String {
         list.map(header.key_lengths, fn(pair) { #(pair.0, json.int(pair.1)) }),
       ),
     ),
+  ])
+  |> json.to_string
+}
+
+pub fn encode_observation(observation: Observation) -> String {
+  json.object([
+    #("type", json.string("observation")),
+    #("seq", json.int(observation.seq)),
+    #("step", json.int(observation.step)),
+    #("key", json.string(observation.key)),
+    #("value", json.string(observation.value)),
   ])
   |> json.to_string
 }
@@ -211,6 +228,20 @@ pub fn decode_line(line: String) -> Result(Line, DecodeError) {
         Error(_) ->
           Error(BadLine("exchange line has missing or mistyped fields"))
       }
+    Ok("observation") -> {
+      let decoder = {
+        use seq <- decode.field("seq", decode.int)
+        use step <- decode.field("step", decode.int)
+        use key <- decode.field("key", decode.string)
+        use value <- decode.field("value", decode.string)
+        decode.success(Observation(seq, step, key, value))
+      }
+      case json.parse(line, decoder) {
+        Ok(observation) -> Ok(ObservationLine(observation))
+        Error(_) ->
+          Error(BadLine("observation line has missing or mistyped fields"))
+      }
+    }
     Ok(other) -> Error(BadLine("unknown line type: " <> other))
   }
 }

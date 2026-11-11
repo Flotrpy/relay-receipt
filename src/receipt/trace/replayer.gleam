@@ -16,11 +16,18 @@ import gleam/string
 import receipt/http/types.{
   type Request, type Response, type TransportError, TraceMiss,
 } as http
-import receipt/trace/codec.{type Exchange, type Header, ExchangeLine, HeaderLine}
+import receipt/trace/codec.{
+  type Exchange, type Header, type Observation, ExchangeLine, HeaderLine,
+  ObservationLine,
+}
 import simplifile
 
 pub opaque type Replayer {
-  Replayer(subject: Subject(Message), header: Header)
+  Replayer(
+    subject: Subject(Message),
+    header: Header,
+    observations: Dict(String, String),
+  )
 }
 
 type Message {
@@ -39,8 +46,20 @@ pub fn match_key(endpoint: String, request: Request) -> String {
   )
 }
 
+/// The contents of a trace file.
+pub type Trace {
+  Trace(
+    header: Header,
+    exchanges: List(Exchange),
+    observations: List(Observation),
+  )
+}
+
+/// The text served for an observation the trace does not contain.
+pub const not_recorded = "not recorded in this trace"
+
 /// Parse the text of a trace file.
-pub fn parse(text: String) -> Result(#(Header, List(Exchange)), String) {
+pub fn parse(text: String) -> Result(Trace, String) {
   let lines =
     string.split(text, "\n")
     |> list.filter(fn(line) { string.trim(line) != "" })
@@ -49,27 +68,32 @@ pub fn parse(text: String) -> Result(#(Header, List(Exchange)), String) {
     [first, ..rest] ->
       case codec.decode_line(first) {
         Ok(HeaderLine(header)) -> {
-          use exchanges <- result.try(parse_exchanges(rest, 2, []))
-          Ok(#(header, exchanges))
+          use #(exchanges, observations) <- result.try(
+            parse_lines(rest, 2, [], []),
+          )
+          Ok(Trace(header, exchanges, observations))
         }
-        Ok(ExchangeLine(_)) ->
+        Ok(ExchangeLine(_)) | Ok(ObservationLine(_)) ->
           Error("line 1: trace does not start with a header")
         Error(error) -> Error("line 1: " <> codec.describe_error(error))
       }
   }
 }
 
-fn parse_exchanges(
+fn parse_lines(
   lines: List(String),
   number: Int,
-  acc: List(Exchange),
-) -> Result(List(Exchange), String) {
+  exchanges: List(Exchange),
+  observations: List(Observation),
+) -> Result(#(List(Exchange), List(Observation)), String) {
   case lines {
-    [] -> Ok(list.reverse(acc))
+    [] -> Ok(#(list.reverse(exchanges), list.reverse(observations)))
     [line, ..rest] ->
       case codec.decode_line(line) {
         Ok(ExchangeLine(exchange)) ->
-          parse_exchanges(rest, number + 1, [exchange, ..acc])
+          parse_lines(rest, number + 1, [exchange, ..exchanges], observations)
+        Ok(ObservationLine(observation)) ->
+          parse_lines(rest, number + 1, exchanges, [observation, ..observations])
         Ok(HeaderLine(_)) ->
           Error(
             "line " <> int.to_string(number) <> ": unexpected second header",
@@ -90,6 +114,20 @@ pub fn start(
   header: Header,
   exchanges: List(Exchange),
 ) -> Result(Replayer, String) {
+  start_trace(Trace(header, exchanges, []))
+}
+
+/// Start a replayer over a parsed trace.
+pub fn start_trace(trace: Trace) -> Result(Replayer, String) {
+  let Trace(header, exchanges, observations) = trace
+  let observed =
+    list.fold(observations, dict.new(), fn(found, observation: Observation) {
+      dict.insert(
+        found,
+        observation_key(observation.step, observation.key),
+        observation.value,
+      )
+    })
   let queues =
     exchanges
     |> list.sort(fn(a, b) { int.compare(a.seq, b.seq) })
@@ -102,7 +140,7 @@ pub fn start(
   actor.new(queues)
   |> actor.on_message(handle)
   |> actor.start
-  |> result.map(fn(started) { Replayer(started.data, header) })
+  |> result.map(fn(started) { Replayer(started.data, header, observed) })
   |> result.map_error(fn(_) { "cannot start the trace replayer" })
 }
 
@@ -117,8 +155,8 @@ pub fn load(path: String) -> Result(Replayer, String) {
       <> simplifile.describe_error(error)
     }),
   )
-  use #(header, exchanges) <- result.try(parse(text))
-  start(header, exchanges)
+  use trace <- result.try(parse(text))
+  start_trace(trace)
 }
 
 fn handle(
@@ -144,6 +182,16 @@ fn handle(
       actor.continue(queues)
     }
   }
+}
+
+fn observation_key(step: Int, key: String) -> String {
+  int.to_string(step) <> " " <> key
+}
+
+/// The recorded value of an observation, or `not_recorded`.
+pub fn observation(replayer: Replayer, step: Int, key: String) -> String {
+  dict.get(replayer.observations, observation_key(step, key))
+  |> result.unwrap(not_recorded)
 }
 
 pub fn header(replayer: Replayer) -> Header {
