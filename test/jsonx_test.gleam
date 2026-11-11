@@ -42,3 +42,19 @@ pub fn list_or_empty_test() {
   assert parse("{\"xs\":[1,\"a\"]}", jsonx.list_or_empty(["xs"], decode.int))
     == []
 }
+
+pub fn any_round_trips_nested_values_test() {
+  let text = "{\"a\":[1,2.5,\"x\",true,null],\"b\":{\"c\":\"d\"}}"
+  assert json.to_string(parse(text, jsonx.any())) == text
+}
+
+pub fn any_sorts_object_keys_test() {
+  assert json.to_string(parse("{\"b\":1,\"a\":2}", jsonx.any()))
+    == "{\"a\":2,\"b\":1}"
+}
+
+pub fn raw_at_serialises_a_fragment_test() {
+  assert parse("{\"input\":{\"cmd\":\"ls\"}}", jsonx.raw_at(["input"]))
+    == Some("{\"cmd\":\"ls\"}")
+  assert parse("{}", jsonx.raw_at(["input"])) == None
+}
