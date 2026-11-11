@@ -82,7 +82,7 @@ pub fn every_gated_result_is_inconclusive_test() {
 }
 
 pub fn run_all_returns_all_seventeen_steps_in_order_test() {
-  let results =
+  let runner.Finished(results, _) =
     runner.run_all(quiet_ctx(), base_config(), Some(connected), [
       #(3, fn(_) { step.ran(3, Clean, "ok") }),
     ])
@@ -93,7 +93,7 @@ pub fn run_all_returns_all_seventeen_steps_in_order_test() {
 }
 
 pub fn a_crashing_step_becomes_inconclusive_and_the_run_continues_test() {
-  let results =
+  let runner.Finished(results, _) =
     runner.run_all(quiet_ctx(), base_config(), Some(connected), [
       #(3, fn(_) { panic as "boom" }),
       #(4, fn(_) { step.ran(4, Clean, "still ran") }),
@@ -106,7 +106,7 @@ pub fn a_crashing_step_becomes_inconclusive_and_the_run_continues_test() {
 }
 
 pub fn no_connectivity_skips_chat_steps_but_not_recon_test() {
-  let results =
+  let runner.Finished(results, _) =
     runner.run_all(
       quiet_ctx(),
       base_config(),
@@ -125,7 +125,7 @@ pub fn no_connectivity_skips_chat_steps_but_not_recon_test() {
 }
 
 pub fn detected_format_reaches_later_steps_test() {
-  let results =
+  let runner.Finished(results, _) =
     runner.run_all(
       quiet_ctx(),
       base_config(),
@@ -146,7 +146,7 @@ pub fn detected_format_reaches_later_steps_test() {
 pub fn request_counts_and_duration_are_filled_in_test() {
   let scripted = script.start([script.ok("{}"), script.ok("{}")])
   let ctx = world.ctx(script.handler(scripted))
-  let results =
+  let runner.Finished(results, _) =
     runner.run_all(ctx, base_config(), Some(connected), [
       #(3, fn(ctx: Ctx) {
         let request =
@@ -163,6 +163,34 @@ pub fn request_counts_and_duration_are_filled_in_test() {
 }
 
 pub fn progress_is_reported_for_each_step_test() {
-  let results = runner.run_all(quiet_ctx(), base_config(), None, [])
+  let runner.Finished(results, _) =
+    runner.run_all(quiet_ctx(), base_config(), None, [])
   assert status_of(results, 2) == #(NotApplicable, Some("not_implemented"))
+}
+
+pub fn finished_reports_the_detected_or_forced_format_test() {
+  let detected =
+    runner.run_all(
+      quiet_ctx(),
+      base_config(),
+      Some(fn(_) { #(step.ran(2, Informational, "ok"), Some(Anthropic)) }),
+      [],
+    )
+  assert detected.api_format == Some(Anthropic)
+  let none =
+    runner.run_all(
+      quiet_ctx(),
+      base_config(),
+      Some(fn(_) { #(step.inconclusive(2, "no_format", "x"), None) }),
+      [],
+    )
+  assert none.api_format == None
+  let forced =
+    runner.run_all(
+      quiet_ctx(),
+      Config(..base_config(), api_format: Some(OpenAi)),
+      None,
+      [],
+    )
+  assert forced.api_format == Some(OpenAi)
 }

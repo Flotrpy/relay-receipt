@@ -27,6 +27,15 @@ pub type StepFn =
 pub type ConnectFn =
   fn(Ctx) -> #(StepResult, Option(ApiFormat))
 
+pub type Finished {
+  Finished(
+    results: List(StepResult),
+    /// The target's API format: forced by the user or detected by Step 2.
+    /// `None` when neither happened.
+    api_format: Option(ApiFormat),
+  )
+}
+
 /// Steps that need a working chat endpoint.
 const needs_chat = [3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17]
 
@@ -121,8 +130,8 @@ pub fn run_all(
   config: Config,
   connect: Option(ConnectFn),
   steps: List(#(Int, StepFn)),
-) -> List(StepResult) {
-  let #(results, _, _) =
+) -> Finished {
+  let #(results, final_ctx, connected) =
     catalog.all()
     |> list.fold(#([], ctx, True), fn(acc, info) {
       let #(results, ctx, connected) = acc
@@ -182,5 +191,16 @@ pub fn run_all(
         )
       }
     })
-  list.reverse(results)
+  let step_two_ran =
+    list.any(results, fn(result) {
+      result.id == 2 && result.status == verdict.Run
+    })
+  Finished(results: list.reverse(results), api_format: case config.api_format {
+    Some(format) -> Some(format)
+    None ->
+      case connected && step_two_ran {
+        True -> Some(final_ctx.target.format)
+        False -> None
+      }
+  })
 }

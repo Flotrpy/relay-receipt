@@ -6,7 +6,7 @@ import receipt/api/types.{type ChatParams, type Completion}
 import receipt/client.{type Net}
 import receipt/config.{type MapPreset, type Profile}
 import receipt/endpoint.{type Endpoint}
-import receipt/http/types.{type Request, type Response, type TransportError} as http
+import receipt/http/types as http
 import receipt/prng.{type Prng}
 import receipt/thresholds
 
@@ -39,8 +39,8 @@ pub fn send(
   endpoint: Endpoint,
   step: Int,
   label: String,
-  request: Request,
-) -> Result(Response, TransportError) {
+  request: http.Request,
+) -> Result(http.Response, http.TransportError) {
   client.send(ctx.net, endpoint.name, step, label, request)
 }
 
