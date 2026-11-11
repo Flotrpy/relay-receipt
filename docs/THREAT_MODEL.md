@@ -41,3 +41,42 @@ user (runs Receipt) --> relay R --> ... --> upstream provider --> model
   purpose of comparison (in this project: the free tiers of Groq and Google
   Gemini). Trust here is an assumption made by the user, not something
   Receipt verifies.
+
+## What a dishonest relay controls
+
+The relay is a full application-layer man-in-the-middle by design. No
+provider enforces end-to-end integrity between client and model
+([arXiv:2604.08407](https://arxiv.org/abs/2604.08407)). A relay can:
+
+| Capability | Example |
+|---|---|
+| Rewrite the request | Prepend a hidden system prompt; drop or truncate long context; change sampling parameters; strip tools. |
+| Choose the model | Serve a cheaper, smaller, quantized or unrelated model under the advertised name; mix models per request. |
+| Rewrite the response | Change package names or tool-call arguments; pad or lengthen output; alter streamed events. |
+| Rewrite metadata | Report any `usage` numbers, model name, ids and headers it likes. |
+| Choose its upstream | Forward through other relays without saying so; share upstream credentials with unrelated storefronts. |
+| Keep what it sees | Log prompts, responses and any credentials that pass through. |
+| Behave conditionally | Act only on some requests, only after a warm-up period, or only when a request does not look like an audit ([arXiv:2604.08407](https://arxiv.org/abs/2604.08407), AC-1.b). |
+
+Receipt assumes the relay cannot break TLS to *other* hosts, cannot read the
+user's machine, and cannot change what the trusted reference returns.
+
+## What the user can observe
+
+Receipt is strictly black-box. For each request it can record:
+
+- the bytes it sent and the bytes it received, including every response
+  header and every server-sent event;
+- when each chunk arrived, on a monotonic clock;
+- the `usage` object the relay chose to report (prompt, completion, cached
+  and reasoning token counts where present);
+- public facts about the relay's host: DNS records, TLS certificate,
+  responses to unauthenticated requests;
+- the same observations from the trusted reference, when one is configured.
+
+Receipt cannot observe: the request the relay actually sent upstream, the
+model weights or logits, hidden reasoning text, the relay's logs, or what
+the relay does with other customers' traffic.
+
+Everything in a report is derived from the first list. Anything that would
+need the second list is stated as a limit, not inferred.
