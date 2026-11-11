@@ -21,7 +21,10 @@ pub fn steps() -> List(step.StepResult) {
       ]),
     step.ran(9, Anomaly, "A filesystem path appears in an error body.")
       |> step.with_severity(Medium)
-      |> step.with_finding(step.Signal, "path /app/server.py in body")
+      |> step.with_finding(
+        step.Signal,
+        "path /app/server.py in body <script>alert(1)</script>",
+      )
       |> step.with_details([
         block.Code("Traceback ```\nFile \"/app/server.py\""),
       ]),
