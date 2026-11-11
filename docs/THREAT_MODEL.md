@@ -80,3 +80,28 @@ the relay does with other customers' traffic.
 
 Everything in a report is derived from the first list. Anything that would
 need the second list is stated as a limit, not inferred.
+
+## What each step can and cannot catch
+
+"Catches" below means "produces an anomaly or a visible signal when the
+behaviour is present on the audited requests". Every row is subject to the
+general limits in the next section.
+
+| Step | Cheat it is aimed at | Signal used | Cannot catch |
+|---|---|---|---|
+| 1 Infrastructure recon | none (descriptive) | DNS, TLS certificate, HTTP headers | Anything about behaviour. |
+| 2 Connectivity | none (descriptive) | Which API formats answer | Anything about behaviour. |
+| 3 Token injection | Hidden system prompt added to every request | Billed prompt tokens minus the count a trusted reference bills for the same text and model | A relay that subtracts its own overhead from `usage`; injections on only some requests; a relay with no reference available falls back to a rough estimate. |
+| 4 Prompt extraction | Hidden system prompt | Model repeats instructions the user never sent | Prompts the model refuses to reveal; a relay that filters the reply. |
+| 5 Instruction override | Hidden prompt that outranks the user's system prompt | Model fails to follow a simple user system instruction; self-reported identity conflicts with the claimed model | Hidden prompts that do not conflict with the test instruction. Self-reported identity is a consistency signal only. |
+| 6 Jailbreak resistance | Hidden prompt, weak guardrails | Role-play and encoding requests that reveal injected text | Same limits as Step 4. |
+| 7 Context truncation | Relay silently drops part of a long prompt | Canary strings planted through a long input are not recalled | Truncation above the tested size; honest model recall failures look the same and are reported as inconclusive unless the pattern is positional. |
+| 8 Tool-call substitution | Relay rewrites package names or tool arguments ([arXiv:2604.08407](https://arxiv.org/abs/2604.08407), AC-1.a) | Exact comparison of echoed install commands and of structured tool-call arguments | Rewrites triggered only by packages or contexts outside the probe set; conditional delivery. |
+| 9 Error-response leakage | Relay echoes credentials or internals when a request fails | Error bodies and headers scanned for the key, upstream URLs, environment names, paths, stack traces | Leaks that happen only in the relay's own logs. |
+| 10 Stream integrity | Relay rewrites or re-chunks streamed output | SSE event grammar, id and model consistency, usage monotonicity, single terminal event | A relay that rebuilds a well-formed stream. |
+| 12 Infrastructure fingerprint | none (descriptive) | Gateway software markers in unauthenticated responses | A relay that strips the markers. |
+| 13 Latency variance | Per-request model mixing | Spread and bimodality of latency for identical requests | Mixing between models with similar latency. Network jitter produces the same signal. |
+| 14 Upstream channel | Undisclosed upstream | Id prefixes and headers that identify a serving channel | A relay that rewrites ids and headers. |
+| 15 Inflation probe | Provider-side output lengthening ([arXiv:2609.20370](https://arxiv.org/abs/2609.20370)) | A length-inducing probe adds far fewer tokens than it does on normal service | Misreported token counts without longer text; misreported hidden reasoning tokens (see below); inflation on a small fraction of requests. |
+| 16 Upstream map | Hidden shared backends between endpoints ([arXiv:2608.20732](https://arxiv.org/abs/2608.20732)) | A prompt cached through one endpoint is reported as a cache hit through another | Endpoints whose upstream has no prefix cache or reports no cached-token count; sharing below the measurement resolution; a relay that zeroes the cached-token field. |
+| 17 Identity test | Model substitution | Tool-choice distribution ([arXiv:2609.00052](https://arxiv.org/abs/2609.00052)) and rank uniformity of responses ([arXiv:2506.06975](https://arxiv.org/abs/2506.06975)) against the same model on the trusted reference | Substitution on a small fraction of requests; a substitute tuned to imitate the reference on these probes; any model for which no trusted reference exists. |
