@@ -35,3 +35,8 @@ pub fn ctx(handler: client.Handler) -> Ctx {
     progress: fn(_) { Nil },
   )
 }
+
+/// The same context with another base URL for the target.
+pub fn with_target_url(ctx: Ctx, base_url: String) -> Ctx {
+  Ctx(..ctx, target: Endpoint(..ctx.target, base_url: base_url))
+}
