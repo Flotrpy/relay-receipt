@@ -47,3 +47,24 @@ phase. The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Step runner with gating and per-step crash isolation.
 - `receipt/thresholds`: one module of pre-registered cut-offs, checked
   against `docs/THRESHOLDS.md` by a test.
+
+### Phase D: statistics library
+
+Built before the parity steps because several of them use it.
+
+- `stats/descriptive`: mean, variance, standard deviation, CV, quantiles.
+- `stats/robust`: MAD, IQR, robust CV, trimmed mean, widest-gap bimodality.
+- `stats/normal`: standard normal CDF and quantile.
+- `stats/wilson`: Wilson score interval; reproduces the intervals published
+  in arXiv:2608.29930.
+- `stats/binomial`: binomial tails and the Step 16 threshold formulas;
+  reproduces every value published in arXiv:2608.20732.
+- `stats/holm`: Holm step-down correction.
+- `stats/permutation`, `stats/mmd`: Monte Carlo p-values and the AgentProv
+  MMD permutation test.
+- `stats/cvm`, `stats/rut`: Cramér-von Mises uniformity test and the
+  black-box rank-uniformity construction.
+- `stats/evalue`: p-to-e calibration, products and means of e-values, with
+  a simulation of Ville's inequality.
+- Property and simulation tests throughout: p-values valid under the null,
+  family-wise error controlled, ranks uniform under exchangeability.
