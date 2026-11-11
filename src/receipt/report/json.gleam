@@ -1,7 +1,6 @@
 //// The JSON report, schema version 1. See `docs/REPORT_SCHEMA.md`.
 
 import gleam/json.{type Json}
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import receipt/catalog
 import receipt/report/model.{type EndpointInfo, type Report}
