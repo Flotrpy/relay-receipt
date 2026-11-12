@@ -16,6 +16,7 @@ import receipt/steps/s12_fingerprint
 import receipt/steps/s13_latency
 import receipt/steps/s14_channel
 import receipt/steps/s15_inflation
+import receipt/steps/s16_upstream_map
 
 /// Step 2, which also detects the API format.
 pub fn connect() -> Option(ConnectFn) {
@@ -38,5 +39,6 @@ pub fn all() -> List(#(Int, StepFn)) {
     #(13, s13_latency.run),
     #(14, s14_channel.run),
     #(15, s15_inflation.run),
+    #(16, s16_upstream_map.run),
   ]
 }
