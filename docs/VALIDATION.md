@@ -325,7 +325,7 @@ larger sizes.
 
 An earlier attempt on `openai/gpt-oss-120b` was abandoned: the model's
 free daily token quota had been spent by the test-bed matrices, and 47 of
-96 requests came back HTTP 429. Its usable steps (3, 8, 9, 10) were clean,
+94 requests came back HTTP 429. Its usable steps (3, 8, 9, 10) were clean,
 and the rest were inconclusive, as the specification requires for rate
 limits. It is kept out of the table.
 

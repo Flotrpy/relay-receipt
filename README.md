@@ -119,6 +119,11 @@ prompt), stream integrity (a gateway translation artefact) and, once,
 package rewriting (an empty reply); Receipt raised none of those, and
 flagged the gateway's header in Step 9.
 
+**Honest controls.** Directly against a hosted provider, Receipt raised no
+anomaly; two prompt-leak steps were inconclusive on a small model's weak
+replies, so the rating was MEDIUM, not LOW. Through the gateway, the only
+anomaly was the gateway's own header.
+
 ## What it does not claim
 
 - **It is not a safety certificate.** A relay that passes has passed these

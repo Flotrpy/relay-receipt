@@ -120,7 +120,17 @@ Built before the parity steps because several of them use it.
   clean and does not count off-target anomalies as false positives.
 - Head-to-head mode against api-relay-audit v2.5.0.
 
-### Phase H: polish (in progress)
+### Phase G: validation
+
+- `docs/VALIDATION.md`: test-bed confusion matrices for Steps 3–10 and 15
+  and for Step 17; Step 16 on a shared gateway; simulator rates for Steps
+  15 and 17 and synthetic topologies for Step 16; honest controls; a
+  head-to-head with api-relay-audit v2.5.0 with every disagreement
+  explained; a comparison with the papers' numbers.
+- Validation summary in the README.
+- No threshold was changed in response to a validation result.
+
+### Phase H: polish
 
 - Full README, CONTRIBUTING.md, SECURITY.md, test-bed README.
 - CI on GitHub Actions: formatting, build, all tests, escript build,
