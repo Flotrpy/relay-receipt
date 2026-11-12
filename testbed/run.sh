@@ -99,7 +99,8 @@ case "$matrix" in
     ;;
   e)
     ara="${ARA_DIR:?set ARA_DIR to an api-relay-audit v2.5.0 checkout}"
-    model="openai/gpt-oss-120b"
+    # A separate model from matrix A, to stay inside free daily quotas.
+    model="openai/gpt-oss-20b"
     for fault in none inject rewrite; do
       start_relay "$fault" 4100
       echo "== e-$fault (api-relay-audit)" >&2
