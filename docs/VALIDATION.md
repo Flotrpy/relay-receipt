@@ -310,3 +310,54 @@ Why the tools disagree, case by case:
 These are case reports from at most four runs per cell on one model. They
 show where the two tools' rules differ, not which tool is more accurate in
 general.
+
+## Honest controls
+
+Receipt audited two hosted services that are assumed honest. The
+specification asks that these come out clean; the results are reported as
+they came out.
+
+**Provider A, direct.** `allam-2-7b`, with the same model on Provider A as
+the trusted reference, Steps 1, 3–6, 8–10 and 12–15, 6 requests per minute
+per endpoint, seed 20261112. 148 requests, none rate-limited. Step 7 was
+left out because this model's 4k-token context cannot hold the scan's
+larger sizes.
+
+An earlier attempt on `openai/gpt-oss-120b` was abandoned: the model's
+free daily token quota had been spent by the test-bed matrices, and 47 of
+96 requests came back HTTP 429. Its usable steps (3, 8, 9, 10) were clean,
+and the rest were inconclusive, as the specification requires for rate
+limits. It is kept out of the table.
+
+**Provider B, through the gateway.** `gemma-4-26b-a4b-it` behind the
+unmodified LiteLLM gateway, no trusted reference, Steps 3–6, 8–10 and
+12–15. Provider B's OpenAI-compatible endpoint could not be authenticated
+from the environment the runs were made in, so the gateway was the only
+route; that makes this a control of Provider B *plus* the gateway.
+
+| Step | Provider A, direct | Provider B, via gateway |
+| --- | --- | --- |
+| 1 Infrastructure recon | informational | – |
+| 3 Token injection | clean (reference: offset 0) | clean (estimate) |
+| 4 Prompt extraction | inconclusive (3 weak replies) | inconclusive (1 unrelated, 2 empty) |
+| 5 Instruction override | clean (2 of 3 followed) | clean (3 of 3) |
+| 6 Jailbreak resistance | inconclusive (1 weak, 2 unrelated) | inconclusive (1 refused, 2 empty) |
+| 8 Tool-call substitution | clean (4 of 6 returned a command) | clean (6 of 6) |
+| 9 Error leakage | clean | **anomaly** (upstream host in a gateway header) |
+| 10 Stream integrity | clean | clean |
+| 12 Infrastructure fingerprint | informational | informational |
+| 13 Latency variance | informational | informational |
+| 14 Channel classifier | informational | informational |
+| 15 Inflation probe | clean (S = 0 over 20 pairs) | clean (S = 0 over 20 pairs) |
+| Rating | MEDIUM (rule 5: Step 4 inconclusive) | HIGH (rule 1: Step 9) |
+
+What this shows:
+
+- **No anomaly on the direct control.** Nothing Receipt measured on
+  Provider A directly was flagged. The control is not "clean" overall
+  because Steps 4 and 6 were inconclusive: the small model gave replies too
+  weak to score as refusals. By design an inconclusive step is never
+  counted as clean, and it raises the rating to MEDIUM.
+- **The one anomaly on Provider B comes from the gateway**, the same header
+  seen in every test-bed run, not from Provider B. A direct Provider B
+  control remains to be done.
