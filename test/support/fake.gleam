@@ -11,8 +11,9 @@ import gleam/dynamic/decode
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/regexp
+import gleam/result
 import gleam/string
 import receipt/client
 import receipt/http/types.{
@@ -44,6 +45,10 @@ pub type Fake {
     truncate_chars: Int,
     /// Refuse user messages longer than this with HTTP 413. 0 for none.
     max_prompt_chars: Int,
+    /// Replacements the relay applies to everything the model returns.
+    rewrites: List(#(String, String)),
+    /// Whether tool definitions are honoured.
+    supports_tools: Bool,
   )
 }
 
@@ -61,6 +66,8 @@ pub fn honest() -> Fake {
     self_description: "I am test-model, an AI assistant trained by TestLab.",
     truncate_chars: 0,
     max_prompt_chars: 0,
+    rewrites: [],
+    supports_tools: True,
   )
 }
 
@@ -77,6 +84,8 @@ pub type Chat {
     stream: Bool,
     /// Length of the last user message in characters.
     user_chars: Int,
+    /// Names of the tools offered.
+    tools: List(String),
   )
 }
 
@@ -174,11 +183,17 @@ pub fn parse_chat(body: String) -> Result(Chat, Nil) {
     use top_system <- decode.then(jsonx.string_or(["system"], ""))
     use max_tokens <- decode.then(jsonx.optional_int(["max_tokens"]))
     use stream <- decode.then(jsonx.optional_at(["stream"], decode.bool))
-    decode.success(#(model, messages, top_system, max_tokens, stream))
+    use tools <- decode.then(jsonx.list_or_empty(
+      ["tools"],
+      decode.one_of(decode.at(["function", "name"], decode.string), [
+        decode.at(["name"], decode.string),
+      ]),
+    ))
+    decode.success(#(model, messages, top_system, max_tokens, stream, tools))
   }
   case json.parse(body, decoder) {
     Error(_) -> Error(Nil)
-    Ok(#(model, messages, top_system, max_tokens, stream)) -> {
+    Ok(#(model, messages, top_system, max_tokens, stream, tools)) -> {
       let system_messages =
         list.filter(messages, fn(m) { m.0 == "system" })
         |> list.map(fn(m) { m.1 })
@@ -197,6 +212,7 @@ pub fn parse_chat(body: String) -> Result(Chat, Nil) {
         max_tokens: option.unwrap(max_tokens, 256),
         stream: option.unwrap(stream, False),
         user_chars: string.length(user),
+        tools: tools,
       ))
     }
   }
@@ -253,6 +269,10 @@ fn plain_answer(fake: Fake, chat: Chat) -> String {
     keep -> string.slice(chat.user, 0, keep)
   }
   let lower = string.lowercase(string.slice(chat.user, 0, 400))
+  use <- bool.guard(
+    string.starts_with(chat.user, "Repeat the following line exactly"),
+    string.split(chat.user, "\n") |> list.last |> result.unwrap(""),
+  )
   use <- bool.guard(string.contains(seen, "markers that look like [CANARY-"), {
     // Skip the example marker in the instruction itself.
     case string.split_once(seen, "nothing else.\n\n") {
@@ -315,7 +335,55 @@ fn openai_chat(
     Ok(chat) if fake.rejects_system && chat.system != "" ->
       json_reply(422, error_body("System messages are not supported."))
     Ok(chat) -> {
-      let text = answer(fake, chat)
+      let text = rewrite(fake, answer(fake, chat))
+      let tool_command = case
+        fake.supports_tools && list.contains(chat.tools, "run_shell")
+      {
+        True ->
+          string.split_once(chat.user, "command set to exactly: ")
+          |> option.from_result
+          |> option.map(fn(pair) { rewrite(fake, pair.1) })
+        False -> None
+      }
+      let #(message, finish) = case tool_command {
+        Some(command) -> #(
+          json.object([
+            #("role", json.string("assistant")),
+            #("content", json.null()),
+            #(
+              "tool_calls",
+              json.preprocessed_array([
+                json.object([
+                  #("id", json.string("call_fake_1")),
+                  #("type", json.string("function")),
+                  #(
+                    "function",
+                    json.object([
+                      #("name", json.string("run_shell")),
+                      #(
+                        "arguments",
+                        json.string(
+                          json.to_string(
+                            json.object([#("command", json.string(command))]),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ]),
+            ),
+          ]),
+          "tool_calls",
+        )
+        None -> #(
+          json.object([
+            #("role", json.string("assistant")),
+            #("content", json.string(text)),
+          ]),
+          "stop",
+        )
+      }
       json.object(list.append(
         [
           #(
@@ -331,14 +399,8 @@ fn openai_chat(
             json.preprocessed_array([
               json.object([
                 #("index", json.int(0)),
-                #(
-                  "message",
-                  json.object([
-                    #("role", json.string("assistant")),
-                    #("content", json.string(text)),
-                  ]),
-                ),
-                #("finish_reason", json.string("stop")),
+                #("message", message),
+                #("finish_reason", json.string(finish)),
               ]),
             ]),
           ),
@@ -357,6 +419,13 @@ fn openai_chat(
   }
 }
 
+/// Apply the relay's return-path replacements.
+fn rewrite(fake: Fake, text: String) -> String {
+  list.fold(fake.rewrites, text, fn(text, pair) {
+    string.replace(text, pair.0, pair.1)
+  })
+}
+
 fn anthropic_chat(
   fake: Fake,
   request: Request,
@@ -364,7 +433,7 @@ fn anthropic_chat(
   case parse_chat(request.body) {
     Error(Nil) -> bad_request()
     Ok(chat) -> {
-      let text = answer(fake, chat)
+      let text = rewrite(fake, answer(fake, chat))
       json.object(list.append(
         [
           #("id", json.string("msg_01fake")),
