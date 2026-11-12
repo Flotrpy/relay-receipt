@@ -24,3 +24,6 @@ erl_crash.dump
 .DS_Store
 .idea/
 .vscode/
+
+# Test bed build output
+/testbed/evilrelay/build/
