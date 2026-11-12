@@ -8,10 +8,12 @@
 
 import gleam/bool
 import gleam/dynamic/decode
+import gleam/erlang/process.{type Subject}
 import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/otp/actor
 import gleam/regexp
 import gleam/result
 import gleam/string
@@ -62,6 +64,12 @@ pub type Fake {
     inflation_percent: Int,
     /// Cut every answer at `max_tokens` and say so.
     always_truncates: Bool,
+    /// Which simulated model answers tool-choice and short-text probes.
+    /// Two relays with the same persona behave alike; different personas
+    /// prefer different tool names and different words.
+    persona: Int,
+    /// Sequence number of the request, set by `handler`.
+    call: Int,
   )
 }
 
@@ -86,6 +94,8 @@ pub fn honest() -> Fake {
     stream_fault: "",
     inflation_percent: 0,
     always_truncates: False,
+    persona: 0,
+    call: 0,
   )
 }
 
@@ -125,8 +135,20 @@ pub fn billed_prompt_tokens(fake: Fake, chat: Chat) -> Int {
   7 + count(chat.system) + count(chat.all_text) + count(fake.hidden_prompt)
 }
 
+/// A handler for the fake. Requests are numbered so that repeated
+/// identical requests can get different (but reproducible) answers.
 pub fn handler(fake: Fake) -> client.Handler {
-  fn(_endpoint: String, request: Request) { respond(fake, request) }
+  let assert Ok(counter) =
+    actor.new(0)
+    |> actor.on_message(fn(count: Int, reply: Subject(Int)) {
+      process.send(reply, count)
+      actor.continue(count + 1)
+    })
+    |> actor.start
+  fn(_endpoint: String, request: Request) {
+    let call = process.call(counter.data, 5000, fn(reply) { reply })
+    respond(Fake(..fake, call: call), request)
+  }
 }
 
 pub fn respond(
@@ -383,9 +405,10 @@ fn plain_answer(fake: Fake, chat: Chat) -> String {
       case string.contains(lower, "which ai model are you") {
         True -> fake.self_description
         False ->
-          case string.contains(lower, "2 + 2") {
-            True -> "2 + 2 equals 4."
-            False -> "ok"
+          case string.contains(lower, "2 + 2"), chat.max_tokens == 30 {
+            True, _ -> "2 + 2 equals 4."
+            False, True -> persona_sentence(fake, chat.user)
+            False, False -> "ok"
           }
       }
   }
@@ -438,17 +461,26 @@ fn openai_chat(
       json_reply(422, error_body("System messages are not supported."))
     Ok(chat) -> {
       let text = rewrite(fake, answer(fake, chat))
-      let tool_command = case
-        fake.supports_tools && list.contains(chat.tools, "run_shell")
-      {
-        True ->
+      let shell = fake.supports_tools && list.contains(chat.tools, "run_shell")
+      let tool_call = case shell, fake.supports_tools, chat.tools {
+        True, _, _ ->
           string.split_once(chat.user, "command set to exactly: ")
           |> option.from_result
-          |> option.map(fn(pair) { rewrite(fake, pair.1) })
-        False -> None
+          |> option.map(fn(pair) {
+            #(
+              "run_shell",
+              json.to_string(
+                json.object([
+                  #("command", json.string(rewrite(fake, pair.1))),
+                ]),
+              ),
+            )
+          })
+        False, True, [_, ..] -> Some(#(preferred_tool(fake, chat), "{}"))
+        _, _, _ -> None
       }
-      let #(message, finish) = case tool_command {
-        Some(command) -> #(
+      let #(message, finish) = case tool_call {
+        Some(#(tool_name, tool_arguments)) -> #(
           json.object([
             #("role", json.string("assistant")),
             #("content", json.null()),
@@ -461,15 +493,8 @@ fn openai_chat(
                   #(
                     "function",
                     json.object([
-                      #("name", json.string("run_shell")),
-                      #(
-                        "arguments",
-                        json.string(
-                          json.to_string(
-                            json.object([#("command", json.string(command))]),
-                          ),
-                        ),
-                      ),
+                      #("name", json.string(tool_name)),
+                      #("arguments", json.string(tool_arguments)),
                     ]),
                   ),
                 ]),
@@ -601,6 +626,82 @@ fn openai_stream(fake: Fake, chat: Chat) -> Response {
     chunks: chunks,
     timing: Timing(Some(90_000), Some(100_000), Some(200_000)),
   )
+}
+
+/// The tool a persona picks: its favourite (the alphabetically first
+/// name for persona 0, the last for any other) three times in four,
+/// otherwise another one. The pick does not depend on the order in which
+/// the tools were offered.
+fn preferred_tool(fake: Fake, chat: Chat) -> String {
+  let sorted = list.sort(chat.tools, string.compare)
+  let ranked = case fake.persona {
+    0 -> sorted
+    _ -> list.reverse(sorted)
+  }
+  let roll = percent_of(chat.user <> int.to_string(fake.call))
+  case ranked {
+    [favourite, ..others] ->
+      case roll < 75, others {
+        True, _ | False, [] -> favourite
+        False, others ->
+          list.drop(others, roll % list.length(others))
+          |> list.first
+          |> result.unwrap(favourite)
+      }
+    [] -> ""
+  }
+}
+
+const plain_words = [
+  "the",
+  "a",
+  "good",
+  "way",
+  "is",
+  "to",
+  "try",
+  "it",
+  "and",
+  "you",
+  "can",
+  "be",
+  "sure",
+  "of",
+  "that",
+]
+
+const ornate_words = [
+  "verily",
+  "henceforth",
+  "splendid",
+  "contrivance",
+  "behold",
+  "wherefore",
+  "luminous",
+  "quixotic",
+  "ephemeral",
+  "labyrinth",
+  "zephyr",
+  "obsidian",
+]
+
+/// A short sentence in the persona's vocabulary, varying with the call.
+fn persona_sentence(fake: Fake, user: String) -> String {
+  let words = case fake.persona {
+    0 -> plain_words
+    _ -> ornate_words
+  }
+  [1, 2, 3, 4, 5, 6, 7]
+  |> list.map(fn(position) {
+    let roll =
+      percent_of(
+        user <> int.to_string(fake.call) <> "/" <> int.to_string(position),
+      )
+    list.drop(words, roll % list.length(words))
+    |> list.first
+    |> result.unwrap("so")
+  })
+  |> string.join(" ")
 }
 
 /// Apply the relay's return-path replacements.
