@@ -8,6 +8,7 @@ import receipt/steps/s03_token_injection
 import receipt/steps/s04_prompt_extraction
 import receipt/steps/s05_override
 import receipt/steps/s06_jailbreak
+import receipt/steps/s07_context
 
 /// Step 2, which also detects the API format.
 pub fn connect() -> Option(ConnectFn) {
@@ -22,5 +23,6 @@ pub fn all() -> List(#(Int, StepFn)) {
     #(4, s04_prompt_extraction.run),
     #(5, s05_override.run),
     #(6, s06_jailbreak.run),
+    #(7, s07_context.run),
   ]
 }

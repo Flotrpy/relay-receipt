@@ -6,11 +6,13 @@
 //// double, not a model: its "understanding" is a handful of rules keyed
 //// on what the probes ask for.
 
+import gleam/bool
 import gleam/dynamic/decode
 import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{Some}
+import gleam/regexp
 import gleam/string
 import receipt/client
 import receipt/http/types.{
@@ -38,6 +40,10 @@ pub type Fake {
     rejects_system: Bool,
     /// How the model describes itself.
     self_description: String,
+    /// Keep only this many characters of the user message. 0 keeps all.
+    truncate_chars: Int,
+    /// Refuse user messages longer than this with HTTP 413. 0 for none.
+    max_prompt_chars: Int,
   )
 }
 
@@ -53,6 +59,8 @@ pub fn honest() -> Fake {
     hidden_overrides: False,
     rejects_system: False,
     self_description: "I am test-model, an AI assistant trained by TestLab.",
+    truncate_chars: 0,
+    max_prompt_chars: 0,
   )
 }
 
@@ -67,6 +75,8 @@ pub type Chat {
     all_text: String,
     max_tokens: Int,
     stream: Bool,
+    /// Length of the last user message in characters.
+    user_chars: Int,
   )
 }
 
@@ -186,6 +196,7 @@ pub fn parse_chat(body: String) -> Result(Chat, Nil) {
         all_text: string.join(list.map(others, fn(m) { m.1 }), ""),
         max_tokens: option.unwrap(max_tokens, 256),
         stream: option.unwrap(stream, False),
+        user_chars: string.length(user),
       ))
     }
   }
@@ -222,8 +233,33 @@ pub fn answer(fake: Fake, chat: Chat) -> String {
   }
 }
 
+/// Every `[CANARY-...]` marker in a text, one per line.
+fn list_canaries(text: String) -> String {
+  let assert Ok(pattern) =
+    regexp.from_string("\\[(CANARY-[0-9]+-[0-9a-f]{8})\\]")
+  regexp.scan(pattern, text)
+  |> list.filter_map(fn(match) {
+    case match.submatches {
+      [Some(marker)] -> Ok(marker)
+      _ -> Error(Nil)
+    }
+  })
+  |> string.join("\n")
+}
+
 fn plain_answer(fake: Fake, chat: Chat) -> String {
-  let lower = string.lowercase(chat.user)
+  let seen = case fake.truncate_chars {
+    0 -> chat.user
+    keep -> string.slice(chat.user, 0, keep)
+  }
+  let lower = string.lowercase(string.slice(chat.user, 0, 400))
+  use <- bool.guard(string.contains(seen, "markers that look like [CANARY-"), {
+    // Skip the example marker in the instruction itself.
+    case string.split_once(seen, "nothing else.\n\n") {
+      Ok(#(_, body)) -> list_canaries(body)
+      Error(Nil) -> ""
+    }
+  })
   case asks_for_prompt(chat.user), fake.hidden_prompt {
     True, "" -> "I don't have a system prompt in this conversation."
     True, hidden -> "```\n" <> hidden <> "\n```"
@@ -273,6 +309,9 @@ fn openai_chat(
 ) -> Result(Response, TransportError) {
   case parse_chat(request.body) {
     Error(Nil) -> bad_request()
+    Ok(chat)
+      if fake.max_prompt_chars > 0 && fake.max_prompt_chars < chat.user_chars
+    -> json_reply(413, error_body("Request too large for this model."))
     Ok(chat) if fake.rejects_system && chat.system != "" ->
       json_reply(422, error_body("System messages are not supported."))
     Ok(chat) -> {
