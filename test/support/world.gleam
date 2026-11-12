@@ -8,7 +8,7 @@ import receipt/ctx.{type Ctx, Ctx}
 import receipt/endpoint.{type Endpoint, Endpoint}
 import receipt/secret
 
-pub const key = "sk-test-0123456789abcdefghijklmnopqrstuv"
+pub const key = "sk-test-Qm7vX2pL9sKd4RtW8yHn3JcF6bZa1EuG"
 
 pub fn endpoint(name: String) -> Endpoint {
   Endpoint(

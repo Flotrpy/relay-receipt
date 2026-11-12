@@ -99,6 +99,12 @@ A trace must be safe to commit as a test fixture.
 Redaction happens before a line is written. There is no option to turn it
 off.
 
+Because any key fragment of 8 or more characters is redacted, a request
+whose own text happens to contain such a fragment is stored redacted too,
+and that one exchange will not match on replay (`trace_miss`). With
+randomly generated keys this is very unlikely; the test suite uses a
+random-looking key for this reason.
+
 Traces can still contain private relay URLs, model output and anything a
 relay put in an error message. Review a trace before sharing it. Fixtures
 committed to this repository come only from the local test bed or are
