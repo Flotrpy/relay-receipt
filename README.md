@@ -82,6 +82,43 @@ back, the rule applied and, for statistical steps, the error rate. The same
 content is available as JSON (`--format json`, schema in
 [docs/REPORT_SCHEMA.md](./docs/REPORT_SCHEMA.md)).
 
+## Validation
+
+Full method, every run and every caveat:
+[docs/VALIDATION.md](./docs/VALIDATION.md). In short:
+
+**Test bed.** A local evil relay in front of real free-tier models, one
+fault at a time, one run per condition (case reports, not rates).
+Inconclusive is counted on its own, never as clean.
+
+| Step | Aimed at | TP | FN | Inconclusive (fault) | FP | TN | Inconclusive (honest) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3 Token injection | hidden prompt | 1 | 0 | 0 | 0 | 1 | 0 |
+| 4 Prompt extraction | hidden prompt | 0 | 1 | 0 | 0 | 1 | 0 |
+| 5 Instruction override | hidden prompt | 0 | 1 | 0 | 0 | 1 | 0 |
+| 6 Jailbreak resistance | hidden prompt | 0 | 1 | 0 | 0 | 0 | 1 |
+| 8 Tool-call substitution | package rewriting | 1 | 0 | 0 | 0 | 1 | 0 |
+| 9 Error leakage | (honest relay only) | – | – | – | 1 | 0 | 0 |
+| 10 Stream integrity | (honest relay only) | – | – | – | 0 | 1 | 0 |
+| 15 Inflation probe | billed padding | 1 | 0 | 0 | 0 | 1 | 0 |
+| 17 Identity test | model swap | 1 | 0 | 0 | 0 | 0 | 1 |
+
+The Step 9 false positive is a real header the unmodified LiteLLM gateway
+returns; the Step 17 honest run ran out of free quota and correctly said
+"insufficient data" rather than "same".
+
+**Simulator.** 200 seeded runs each: Step 15 raised no false positives and
+caught 98–100% of 25–100% inflation; Step 17 raised no false positives and
+caught every swapped model. Step 16 got 7 of 8 synthetic topologies right
+with the paper's preset, and the eighth was "unknown", never wrong.
+
+**Head-to-head with api-relay-audit v2.5.0.** Both caught the hidden
+prompt by token count and the package rewrite. On the honest relay,
+api-relay-audit raised red flags for prompt extraction (an invented
+prompt), stream integrity (a gateway translation artefact) and, once,
+package rewriting (an empty reply); Receipt raised none of those, and
+flagged the gateway's header in Step 9.
+
 ## What it does not claim
 
 - **It is not a safety certificate.** A relay that passes has passed these
