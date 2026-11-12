@@ -6,7 +6,9 @@
 //// double, not a model: its "understanding" is a handful of rules keyed
 //// on what the probes ask for.
 
+import gleam/bit_array
 import gleam/bool
+import gleam/crypto
 import gleam/dynamic/decode
 import gleam/erlang/process.{type Subject}
 import gleam/int
@@ -70,6 +72,8 @@ pub type Fake {
     persona: Int,
     /// Sequence number of the request, set by `handler`.
     call: Int,
+    /// Varies the simulated model's random choices between runs.
+    salt: Int,
   )
 }
 
@@ -96,6 +100,7 @@ pub fn honest() -> Fake {
     always_truncates: False,
     persona: 0,
     call: 0,
+    salt: 0,
   )
 }
 
@@ -340,11 +345,12 @@ const padding_filler =
 /// A stable pseudo-random percentage for a prompt, so that partial
 /// inflation hits the same requests on every run.
 fn percent_of(text: String) -> Int {
-  string.to_utf_codepoints(text)
-  |> list.fold(7, fn(hash, codepoint) {
-    { hash * 31 + string.utf_codepoint_to_int(codepoint) } % 1_000_003
-  })
-  |> fn(hash) { hash % 100 }
+  // A cryptographic hash, so that rolls for similar strings (the same
+  // prompt with consecutive call numbers) are independent.
+  case crypto.hash(crypto.Sha256, bit_array.from_string(text)) {
+    <<first:size(32), _:bits>> -> first % 100
+    _ -> 0
+  }
 }
 
 /// A short answer normally; a longer one when asked to show reasoning.
@@ -353,7 +359,11 @@ fn multiple_choice_answer(fake: Fake, user: String) -> String {
   let probed =
     string.contains(user, "reasoning steps")
     || string.contains(user, "derivation step by step")
-  let inflated = percent_of(user) < fake.inflation_percent
+  let inflated =
+    percent_of(
+      user <> int.to_string(fake.call) <> "#" <> int.to_string(fake.salt),
+    )
+    < fake.inflation_percent
   case inflated, probed {
     True, False -> string.repeat(padding_filler, 8) <> "Answer: B"
     True, True ->
@@ -638,7 +648,10 @@ fn preferred_tool(fake: Fake, chat: Chat) -> String {
     0 -> sorted
     _ -> list.reverse(sorted)
   }
-  let roll = percent_of(chat.user <> int.to_string(fake.call))
+  let roll =
+    percent_of(
+      chat.user <> int.to_string(fake.call) <> "#" <> int.to_string(fake.salt),
+    )
   case ranked {
     [favourite, ..others] ->
       case roll < 75, others {
@@ -695,7 +708,12 @@ fn persona_sentence(fake: Fake, user: String) -> String {
   |> list.map(fn(position) {
     let roll =
       percent_of(
-        user <> int.to_string(fake.call) <> "/" <> int.to_string(position),
+        user
+        <> int.to_string(fake.call)
+        <> "/"
+        <> int.to_string(position)
+        <> "#"
+        <> int.to_string(fake.salt),
       )
     list.drop(words, roll % list.length(words))
     |> list.first

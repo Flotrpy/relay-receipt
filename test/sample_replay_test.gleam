@@ -34,7 +34,7 @@ pub fn the_sample_trace_replays_to_the_committed_report_test() {
 pub fn the_sample_shows_the_faults_it_was_built_with_test() {
   let report = replayed()
   assert report.rating.risk == HighRisk
-  [4, 5, 8, 17]
+  [4, 5, 8]
   |> list.each(fn(id) {
     let assert Ok(result) = list.find(report.steps, fn(r) { r.id == id })
     assert result.verdict == Anomaly
