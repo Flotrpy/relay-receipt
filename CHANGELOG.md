@@ -108,3 +108,31 @@ Built before the parity steps because several of them use it.
   reply is not judged in Step 5, structural leaks in Steps 4 and 6 need
   confirmation, and replies that match the trusted reference are not
   attributed to the endpoint.
+
+### Phase F: test bed
+
+- LiteLLM gateway configuration (configuration only) in front of the free
+  Groq and Gemini tiers.
+- The evil relay, in Gleam, with five switchable conditions: none, hidden
+  prompt, billed padding, hidden model swap, package rewriting.
+- `testbed/run.sh` driving matrices of runs with fixed seeds and a trusted
+  reference; a confusion-matrix builder that never counts inconclusive as
+  clean and does not count off-target anomalies as false positives.
+- Head-to-head mode against api-relay-audit v2.5.0.
+
+### Phase H: polish (in progress)
+
+- Full README, CONTRIBUTING.md, SECURITY.md, test-bed README.
+- CI on GitHub Actions: formatting, build, all tests, escript build,
+  end-to-end replay of the synthetic sample trace, test-bed tests.
+- Tag-triggered release workflow publishing the escript and its checksum.
+- Synthetic sample trace and report with a replay test.
+- Simulation and topology tools for the validation document.
+
+### Fixed during validation
+
+- Step 15 now states the paper's worst-case false-positive rate (7.30%)
+  as its bound rather than an average.
+- The simulated relay uses independent random rolls (test-only fix).
+- A test key that collided with a controlled text broke trace replay of
+  one request; the redaction limit is documented.
