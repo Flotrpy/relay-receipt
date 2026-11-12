@@ -182,9 +182,23 @@ pub fn parse_chat(body: String) -> Result(Chat, Nil) {
   }
 }
 
+fn asks_for_prompt(text: String) -> Bool {
+  let lower = string.lowercase(text)
+  string.contains(lower, "system prompt")
+  || string.contains(lower, "instruction you were given")
+  || string.contains(lower, "every instruction")
+  || string.contains(lower, "system-level instructions")
+  || string.contains(lower, "text you received before")
+  || string.contains(lower, "configuration text")
+}
+
 /// The fake model's answer to a chat. Extended as steps need behaviours.
-pub fn answer(_fake: Fake, _chat: Chat) -> String {
-  "ok"
+pub fn answer(fake: Fake, chat: Chat) -> String {
+  case asks_for_prompt(chat.user), fake.hidden_prompt {
+    True, "" -> "I don't have a system prompt in this conversation."
+    True, hidden -> "```\n" <> hidden <> "\n```"
+    False, _ -> "ok"
+  }
 }
 
 fn usage_pairs(
