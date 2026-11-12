@@ -50,6 +50,7 @@ is the same model on Provider A directly. One run per condition, seed
 | 9 | 0 | 0 | 0 | 1 | 0 | 0 |
 | 10 | 0 | 0 | 0 | 0 | 1 | 0 |
 | 15 | 1 | 0 | 0 | 0 | 1 | 0 |
+
 Counting rules: a fault is a positive only for the steps aimed at it
 (inject: 3, 4, 5, 6; pad: 15; rewrite: 8; swap: 17, tested separately
 below). An anomaly from another step under a fault is shown in the grid but
@@ -173,3 +174,49 @@ What the misses show, and why the thresholds were left alone:
   [THRESHOLDS.md](./THRESHOLDS.md)), not of CacheTracer, and is recorded
   here rather than tuned away. The paper calibrates per model offline.
 - In both cases the result is "unknown", never a wrong relation.
+
+## Test bed: Step 17 under model swap and no fault
+
+Receipt ran Step 17 alone against the evil relay, claiming the open-weight
+model `qwen/qwen3.8-27b` on Provider A, with the same model on Provider A
+directly as the trusted reference. Under `swap` the relay served
+`openai/gpt-oss-20b` instead and reported the claimed name in every reply.
+One run per condition, seed 20261112, 20 requests per minute. Produced by
+`testbed/run.sh b`.
+
+| Condition | Verdict | Output | E-value | Batches | Requests sent / failed |
+| --- | --- | --- | --- | --- | --- |
+| b-swap | **anomaly** | different | 54.7 | 1 | 310 / 7 (all 400s from tool probes) |
+| b-none | inconclusive | insufficient data | 0.67 | 2 (1 valid) | 468 / 101 (rate limits) |
+
+| Step | TP | FN | Inconclusive (fault) | FP | TN | Inconclusive (honest) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 17 | 1 | 0 | 0 | 0 | 0 | 1 |
+
+- **Swap.** The first batch already passed the rejection threshold
+  (E ≥ 20), so the sequential test stopped after one batch, as designed.
+- **No fault.** The first batch was valid and showed no difference (tool
+  choice p = 0.70, rank uniformity p = 0.30; no template had a Holm-adjusted
+  p below 1). The second batch was invalidated by HTTP 429 responses: the
+  relay and the reference draw on the same free-tier quota, so every probe
+  costs it twice. "Same" needs the full batch budget, so Receipt reported
+  insufficient data rather than claim the models match. This is the
+  behaviour the specification asks for, but it means the honest-relay case
+  has **not** been shown to come out "same" on a real model. A re-run needs
+  about 700 more requests on that model than the daily free quota had left.
+
+## Test bed: Step 16 on two relays that share one gateway
+
+Two honest evil-relay instances (ports 4100 and 4200) forwarded to the same
+LiteLLM gateway and the same model on Provider A. Step 16 (full profile,
+coarse preset) was asked to map them. Produced by `testbed/run.sh d`.
+
+Result: **inconclusive**, reason `no_cache_telemetry`. Neither endpoint
+reported a cached prompt token during calibration, so no pair could be
+classified, and the adjacency list holds one inconclusive edge. This is the
+expected outcome for this provider and model, which did not report prompt
+caching through the gateway at the time of the run; Step 16 has nothing to
+measure without it. It is recorded as a limit of this test bed, not as a
+pass: the correct relation here ("clone") was **not** demonstrated on a real
+service. The relation logic itself is exercised on the simulated topologies
+in the previous section.
