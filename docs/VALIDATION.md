@@ -23,6 +23,46 @@ the providers have been informed; see [SECURITY.md](../SECURITY.md).
 Thresholds were not changed in response to any test-bed or control result;
 the changes logged in [THRESHOLDS.md](./THRESHOLDS.md) predate them.
 
+## Steps 15 and 17 on the simulated relay
+
+Produced by `gleam run -m tools/simulate -- 200`. Every run uses a fresh
+seed for Receipt and fresh random streams for the simulated models.
+
+### Step 15 on the simulated relay (200 runs each)
+
+| Condition | Anomalies | Rate | 95% Wilson interval |
+| --- | --- | --- | --- |
+| no inflation (false positives) | 0 / 200 | 0.0% | 0.0% to 1.9% |
+| inflation on 25% of requests | 196 / 200 | 98.0% | 95.0% to 99.2% |
+| inflation on 50% of requests | 200 / 200 | 100.0% | 98.1% to 100.0% |
+| inflation on every request | 200 / 200 | 100.0% | 98.1% to 100.0% |
+
+### Step 17 on the simulated relay (200 runs each, general profile)
+
+| Condition | Anomalies | Rate | 95% Wilson interval |
+| --- | --- | --- | --- |
+| same simulated model (false positives) | 0 / 200 | 0.0% | 0.0% to 1.9% |
+| different simulated model | 200 / 200 | 100.0% | 98.1% to 100.0% |
+| same model, tools unsupported on the endpoint | 200 / 200 | 100.0% | 98.1% to 100.0% |
+
+How to read these:
+
+- **False-positive rates are the meaningful rows.** 0 of 200 honest runs
+  raised an anomaly in either step, so both are below 1.9% at 95%
+  confidence on the simulator. That agrees with the designs: Step 15's
+  paper reports 0.02% with no system prompt, and Step 17's bound is 5%
+  anytime-valid by construction. The simulator is far from the worst case
+  (it carries no benign system prompt, which is what raised Step 15's
+  false-positive rate to 7.30% in the paper).
+- **Detection rows are easy cases.** The simulated inflation adds hundreds
+  of words; the simulated "different model" has a different favourite tool
+  in every template and a disjoint vocabulary. A real substitute is usually
+  far closer to the claimed model. These rows show the machinery works, not
+  how often a real substitution would be caught.
+- The third Step 17 row is a reminder that "different" does not say why:
+  the same simulated model behind an endpoint that drops tool definitions is
+  rightly reported as behaving differently.
+
 ## Step 16 on simulated topologies
 
 Each endpoint balances its requests round-robin over a set of isolated cache
