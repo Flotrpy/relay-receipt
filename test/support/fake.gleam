@@ -57,6 +57,11 @@ pub type Fake {
     /// A defect in streamed responses: "", "no_done", "two_ids",
     /// "double_finish", "after_done", "bad_json" or "model_switch".
     stream_fault: String,
+    /// Share of requests (0 to 100) on which answers are padded, imitating
+    /// provider-side token inflation.
+    inflation_percent: Int,
+    /// Cut every answer at `max_tokens` and say so.
+    always_truncates: Bool,
   )
 }
 
@@ -79,6 +84,8 @@ pub fn honest() -> Fake {
     error_suffix: "",
     swallows_errors: False,
     stream_fault: "",
+    inflation_percent: 0,
+    always_truncates: False,
   )
 }
 
@@ -302,6 +309,38 @@ pub fn answer(fake: Fake, chat: Chat) -> String {
   }
 }
 
+const reasoning_filler =
+  "First consider what the question asks. Then compare each option with what is known. The option that fits the facts is the one to choose. "
+
+const padding_filler =
+  "It is worth noting some background before answering, since context always helps the reader appreciate the topic more fully. "
+
+/// A stable pseudo-random percentage for a prompt, so that partial
+/// inflation hits the same requests on every run.
+fn percent_of(text: String) -> Int {
+  string.to_utf_codepoints(text)
+  |> list.fold(7, fn(hash, codepoint) {
+    { hash * 31 + string.utf_codepoint_to_int(codepoint) } % 1_000_003
+  })
+  |> fn(hash) { hash % 100 }
+}
+
+/// A short answer normally; a longer one when asked to show reasoning.
+/// Under inflation the answer is long already, and the probe adds little.
+fn multiple_choice_answer(fake: Fake, user: String) -> String {
+  let probed =
+    string.contains(user, "reasoning steps")
+    || string.contains(user, "derivation step by step")
+  let inflated = percent_of(user) < fake.inflation_percent
+  case inflated, probed {
+    True, False -> string.repeat(padding_filler, 8) <> "Answer: B"
+    True, True ->
+      string.repeat(padding_filler, 8) <> reasoning_filler <> "Answer: B"
+    False, False -> "Answer: B"
+    False, True -> string.repeat(reasoning_filler, 3) <> "Answer: B"
+  }
+}
+
 /// Every `[CANARY-...]` marker in a text, one per line.
 fn list_canaries(text: String) -> String {
   let assert Ok(pattern) =
@@ -322,6 +361,10 @@ fn plain_answer(fake: Fake, chat: Chat) -> String {
     keep -> string.slice(chat.user, 0, keep)
   }
   let lower = string.lowercase(string.slice(chat.user, 0, 400))
+  use <- bool.guard(
+    string.contains(chat.user, "Answer: <letter>"),
+    multiple_choice_answer(fake, chat.user),
+  )
   use <- bool.guard(
     string.starts_with(chat.user, "Repeat the following line exactly"),
     string.split(chat.user, "\n") |> list.last |> result.unwrap(""),
@@ -440,7 +483,10 @@ fn openai_chat(
             #("role", json.string("assistant")),
             #("content", json.string(text)),
           ]),
-          "stop",
+          case fake.always_truncates {
+            True -> "length"
+            False -> "stop"
+          },
         )
       }
       json.object(list.append(
