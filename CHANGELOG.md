@@ -136,3 +136,8 @@ Built before the parity steps because several of them use it.
 - The simulated relay uses independent random rolls (test-only fix).
 - A test key that collided with a controlled text broke trace replay of
   one request; the redaction limit is documented.
+- Test bed: the hidden-prompt fault now also reaches Anthropic-style
+  `/messages` requests, and requests are compacted before any fault is
+  applied. Both bugs hid the faults from api-relay-audit, which sends
+  spaced JSON and prefers `/messages`; the head-to-head was re-run.
+  Receipt's own runs were unaffected (compact JSON, chat endpoint).
