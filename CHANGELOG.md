@@ -68,3 +68,25 @@ Built before the parity steps because several of them use it.
   a simulation of Ville's inequality.
 - Property and simulation tests throughout: p-values valid under the null,
   family-wise error controlled, ranks uniform under exchangeability.
+
+### Phase C: parity steps 1-14
+
+- Trace format gains `observation` lines so DNS and TLS lookups replay.
+- ADR 0003 and the DNS / TLS certificate shim.
+- Step 1 infrastructure recon, Step 2 connectivity and format detection.
+- Step 3 token injection: validity-gated comparison with a trusted
+  reference (arXiv:2608.29930), with the fixed-estimate fallback.
+- Step 4 prompt extraction with a reference cross-check; Step 6 advisory
+  jailbreak probes; shared leak grading.
+- Step 5 instruction override by majority of three trials, plus identity
+  self-report as a consistency signal.
+- Step 7 context truncation scan with positional confirmation.
+- Step 8 tool-call substitution, text and structured tool calls.
+- Step 9 error-response leakage with redacted evidence.
+- Step 10 stream integrity for OpenAI-style and Anthropic-style streams.
+- Step 12 fingerprint, Step 13 latency variance, Step 14 channel
+  classifier (all informational).
+- Step 11 (Web3) reported as `not_applicable`.
+- Rating rule 5 extended: a run in which no rated step ran is `MEDIUM`.
+- A simulated relay with switchable faults for step tests, and an
+  end-to-end test that a recorded run replays to an identical report.
