@@ -90,3 +90,21 @@ Built before the parity steps because several of them use it.
 - Rating rule 5 extended: a run in which no rated step ran is `MEDIUM`.
 - A simulated relay with switchable faults for step tests, and an
   end-to-end test that a recorded run replays to an identical report.
+
+### Phase E: new steps 15, 16 and 17
+
+- Step 15 inflation probe: Algorithm 1 of arXiv:2609.20370 with the
+  paper's parameters, block-wise early stopping, validity rules and the
+  two mandatory limit statements.
+- Step 16 upstream map: thresholds derived from delta and alpha, Flood and
+  Prove state machines, prefix ladder, pair classification, implication
+  pruning, Mermaid graph and adjacency list; a cache simulator with known
+  topology for tests.
+- Step 17 identity test: tool-choice templates, everyday prompts, batch
+  MMD permutation and rank-uniformity tests, e-value accumulation with
+  early stopping, per-template Holm-adjusted diagnostics.
+- Changes made after a smoke test on an honest endpoint, each logged in
+  `docs/THRESHOLDS.md`: probes leave room for reasoning tokens, an empty
+  reply is not judged in Step 5, structural leaks in Steps 4 and 6 need
+  confirmation, and replies that match the trusted reference are not
+  attributed to the endpoint.
