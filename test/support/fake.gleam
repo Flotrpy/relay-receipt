@@ -32,6 +32,12 @@ pub type Fake {
     /// Characters per billed token. Honest relays of the same model agree;
     /// a different value imitates a different tokenizer.
     chars_per_token: Int,
+    /// Whether the hidden prompt outranks the caller's system prompt.
+    hidden_overrides: Bool,
+    /// Whether requests carrying a system message are rejected.
+    rejects_system: Bool,
+    /// How the model describes itself.
+    self_description: String,
   )
 }
 
@@ -44,6 +50,9 @@ pub fn honest() -> Fake {
     hidden_prompt: "",
     reports_usage: True,
     chars_per_token: 4,
+    hidden_overrides: False,
+    rejects_system: False,
+    self_description: "I am test-model, an AI assistant trained by TestLab.",
   )
 }
 
@@ -192,12 +201,41 @@ fn asks_for_prompt(text: String) -> Bool {
   || string.contains(lower, "configuration text")
 }
 
+/// The word a "reply with exactly the single word" instruction asks for.
+fn demanded_word(system: String) -> Result(String, Nil) {
+  case string.split_once(system, "exactly the single word \"") {
+    Ok(#(_, rest)) ->
+      case string.split_once(rest, "\"") {
+        Ok(#(word, _)) -> Ok(word)
+        Error(Nil) -> Error(Nil)
+      }
+    Error(Nil) -> Error(Nil)
+  }
+}
+
 /// The fake model's answer to a chat. Extended as steps need behaviours.
 pub fn answer(fake: Fake, chat: Chat) -> String {
+  let overridden = fake.hidden_overrides && fake.hidden_prompt != ""
+  case demanded_word(chat.system), overridden {
+    Ok(word), False -> word
+    _, _ -> plain_answer(fake, chat)
+  }
+}
+
+fn plain_answer(fake: Fake, chat: Chat) -> String {
+  let lower = string.lowercase(chat.user)
   case asks_for_prompt(chat.user), fake.hidden_prompt {
     True, "" -> "I don't have a system prompt in this conversation."
     True, hidden -> "```\n" <> hidden <> "\n```"
-    False, _ -> "ok"
+    False, _ ->
+      case string.contains(lower, "which ai model are you") {
+        True -> fake.self_description
+        False ->
+          case string.contains(lower, "2 + 2") {
+            True -> "2 + 2 equals 4."
+            False -> "ok"
+          }
+      }
   }
 }
 
@@ -235,6 +273,8 @@ fn openai_chat(
 ) -> Result(Response, TransportError) {
   case parse_chat(request.body) {
     Error(Nil) -> bad_request()
+    Ok(chat) if fake.rejects_system && chat.system != "" ->
+      json_reply(422, error_body("System messages are not supported."))
     Ok(chat) -> {
       let text = answer(fake, chat)
       json.object(list.append(
