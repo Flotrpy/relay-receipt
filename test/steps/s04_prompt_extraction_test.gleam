@@ -38,13 +38,47 @@ pub fn hidden_prompt_revealed_is_an_anomaly_test() {
 }
 
 pub fn prompt_also_revealed_by_reference_is_not_attributed_test() {
+  // Both sides reveal the same text: it belongs to the model, not the relay.
   let relay = Fake(..fake.honest(), hidden_prompt: hidden)
   let ctx =
     world.ctx(world.route(fake.handler(relay), fake.handler(relay)))
     |> world.with_reference
   let result = s04.run(ctx)
+  assert result.verdict == Clean
+  assert string.contains(
+    result.summary,
+    "matched what the trusted reference returns",
+  )
+}
+
+pub fn a_different_prompt_on_the_reference_does_not_explain_the_target_test() {
+  let relay = Fake(..fake.honest(), hidden_prompt: hidden)
+  let other =
+    Fake(
+      ..fake.honest(),
+      hidden_prompt: "You are a terse archivist. Never use adjectives and only answer in lists of dates.",
+    )
+  let ctx =
+    world.ctx(world.route(fake.handler(relay), fake.handler(other)))
+    |> world.with_reference
+  let result = s04.run(ctx)
   assert result.verdict == Inconclusive
   assert result.reason == Some("reference_reveals_prompt_too")
+}
+
+pub fn template_text_shared_with_the_reference_is_clean_test() {
+  let line =
+    "Vous êtes ChatGPT, un grand modèle de langage. Knowledge cutoff 2024-06. Channels must be included for every message."
+  let target = [
+    Observation("verbatim", Some(Refusal), "I can't comply."),
+    Observation("translate", Some(Other), line),
+  ]
+  let reference = [
+    Observation("verbatim", Some(Refusal), "Sorry, no."),
+    Observation("translate", Some(Other), line <> " Reasoning: medium"),
+  ]
+  assert s04.build(4, target, Some(reference)).verdict == Clean
+  assert s04.build(4, target, None).verdict == Inconclusive
 }
 
 pub fn reference_that_refuses_strengthens_the_signal_test() {

@@ -7,6 +7,7 @@
 //// built-in prompt in their chat template: a prompt the reference reveals
 //// too is not attributable to the relay.
 
+import gleam/bool
 import gleam/int
 import gleam/json
 import gleam/list
@@ -188,9 +189,42 @@ pub fn build(
     Some(observations) -> any_structural(observations)
     None -> False
   }
+  // With a reference, a reply is explained when it is benign or when the
+  // reference gave substantially the same reply to the same probe.
+  let explained_by_reference = case reference {
+    None -> False
+    Some(observations) ->
+      failed == 0
+      && target != []
+      && list.all(target, fn(observation) {
+        case observation.grade {
+          Some(Refusal) | Some(IdentityOnly) -> True
+          Some(_) ->
+            list.any(observations, fn(other) {
+              other.label == observation.label
+              && other.grade != None
+              && leak.similar(observation.reply, other.reply)
+            })
+          None -> False
+        }
+      })
+  }
   let all_refusals =
     answered != []
     && list.all(answered, fn(g) { g == Refusal || g == IdentityOnly })
+  use <- bool.guard(
+    explained_by_reference && !all_refusals,
+    step.ran(
+      step_id,
+      Clean,
+      "Every reply was a refusal or matched what the trusted reference returns for the same probe, so nothing is attributable to the endpoint.",
+    )
+      |> step.with_finding(
+        step.Note,
+        "The model reveals text from its own chat template on the reference as well.",
+      )
+      |> decorate,
+  )
   case any_structural(target), reference_leaks, answered {
     True, True, _ ->
       step.inconclusive(
