@@ -146,7 +146,7 @@ fn handle(
       )
     Ok(found) -> {
       let text = rtypes.body_text(found)
-      let changed = case is_chat {
+      let changed = case is_chat || is_messages {
         True ->
           fault.response(settings.fault, text, fault.requested_model(body))
         False -> text
