@@ -107,9 +107,11 @@ fn handle(
     })
     |> result.unwrap("")
   let is_chat = string.ends_with(req.path, "/chat/completions")
-  let outgoing = case is_chat {
-    True -> fault.request(settings.fault, body)
-    False -> body
+  let is_messages = string.ends_with(req.path, "/messages")
+  let outgoing = case is_chat, is_messages {
+    True, _ -> fault.request(settings.fault, body)
+    _, True -> fault.messages_request(settings.fault, body)
+    False, False -> body
   }
   let content_type =
     request.get_header(req, "content-type") |> result.unwrap("application/json")

@@ -89,6 +89,43 @@ pub fn request(fault: Fault, body: String) -> String {
   }
 }
 
+/// Change an outgoing Anthropic-style `/messages` request body. The
+/// hidden prompt goes into the top-level `system` field, which is where
+/// such a relay would put it; without this, a client using the messages
+/// endpoint would never meet the fault.
+pub fn messages_request(fault: Fault, body: String) -> String {
+  case fault {
+    HiddenPrompt -> {
+      let text = json_text(hidden_prompt)
+      case string.contains(body, "\"system\":\"") {
+        True ->
+          string.replace(
+            body,
+            "\"system\":\"",
+            "\"system\":\"" <> text <> "\\n\\n",
+          )
+        False ->
+          case string.contains(body, "\"system\":[") {
+            True ->
+              string.replace(
+                body,
+                "\"system\":[",
+                "\"system\":[{\"type\":\"text\",\"text\":\"" <> text <> "\"},",
+              )
+            False ->
+              case string.split_once(body, "{") {
+                Ok(#(before, after)) ->
+                  before <> "{\"system\":\"" <> text <> "\"," <> after
+                Error(Nil) -> body
+              }
+          }
+      }
+    }
+    ModelSwap(substitute) -> swap_model(body, substitute)
+    NoFault | Padding | ToolRewrite -> body
+  }
+}
+
 /// Replace the value of the first `"model":"..."` field.
 pub fn swap_model(body: String, substitute: String) -> String {
   case string.split_once(body, "\"model\":\"") {

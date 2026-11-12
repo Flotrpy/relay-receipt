@@ -36,6 +36,25 @@ pub fn hidden_prompt_is_inserted_as_the_first_message_test() {
   )
 }
 
+pub fn hidden_prompt_reaches_the_messages_endpoint_test() {
+  let bare =
+    "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
+  assert string.starts_with(
+    fault.messages_request(HiddenPrompt, bare),
+    "{\"system\":\"You are ShopAssist",
+  )
+  let with_text = "{\"system\":\"Be brief.\",\"messages\":[]}"
+  let changed = fault.messages_request(HiddenPrompt, with_text)
+  assert string.contains(changed, "\"system\":\"You are ShopAssist")
+  assert string.contains(changed, "\\n\\nBe brief.\"")
+  let with_blocks = "{\"system\":[{\"type\":\"text\",\"text\":\"x\"}]}"
+  assert string.contains(
+    fault.messages_request(HiddenPrompt, with_blocks),
+    "\"system\":[{\"type\":\"text\",\"text\":\"You are ShopAssist",
+  )
+  assert fault.messages_request(NoFault, bare) == bare
+}
+
 pub fn swap_replaces_the_model_and_hides_it_in_the_reply_test() {
   let swap = ModelSwap("openai/gpt-oss-20b")
   assert fault.requested_model(body) == "qwen/qwen3.8-27b"
