@@ -83,11 +83,19 @@ case "$matrix" in
     done
     ;;
   c)
-    model="openai/gpt-oss-120b"
-    RECEIPT_API_KEY="$RECEIPT_REFERENCE_KEY" audit "c-groq-direct" "$groq" "$model" \
-      1,3,4,5,6,7,8,9,10,12,13,14,15 --reference-url "$groq" --reference-model "$model"
-    RECEIPT_API_KEY="$LITELLM_MASTER_KEY" audit "c-gemini-gateway" \
-      "http://127.0.0.1:4000/v1" "gemma-4-26b-a4b-it" 3,4,5,6,8,9,10,12,13,14,15
+    # CONTROL_MODEL and CONTROL_STEPS let the direct control move to a
+    # model whose daily free quota is not spent; CONTROL_ONLY=groq|gemini
+    # runs one half.
+    model="${CONTROL_MODEL:-openai/gpt-oss-120b}"
+    steps="${CONTROL_STEPS:-1,3,4,5,6,7,8,9,10,12,13,14,15}"
+    if [ "${CONTROL_ONLY:-groq}" != "gemini" ]; then
+      RECEIPT_API_KEY="$RECEIPT_REFERENCE_KEY" audit "c-groq-direct" "$groq" "$model" \
+        "$steps" --reference-url "$groq" --reference-model "$model"
+    fi
+    if [ "${CONTROL_ONLY:-gemini}" != "groq" ]; then
+      RECEIPT_API_KEY="$LITELLM_MASTER_KEY" audit "c-gemini-gateway" \
+        "http://127.0.0.1:4000/v1" "gemma-4-26b-a4b-it" 3,4,5,6,8,9,10,12,13,14,15
+    fi
     ;;
   d)
     start_relay none 4100

@@ -292,8 +292,8 @@ Why the tools disagree, case by case:
   under the rewrite fault and in the rate-limited fourth pass: those reds
   are right by luck, not because a rewrite was seen.
 - **Step 9.** The unmodified LiteLLM gateway returns the upstream API base
-  in a response header on errors. Receipt reads headers and reports it;
-  api-relay-audit did not. It is a real disclosure by the gateway, but
+  in a response header on errors. Receipt reports it;
+  api-relay-audit's header scan did not flag it. It is a real disclosure by the gateway, but
   under the counting rules above it is a false positive for the relay
   condition, and it is counted as one.
 - **Step 10.** api-relay-audit opens an Anthropic-format stream. The gateway
