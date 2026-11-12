@@ -10,6 +10,7 @@ import receipt/steps/s05_override
 import receipt/steps/s06_jailbreak
 import receipt/steps/s07_context
 import receipt/steps/s08_tool_substitution
+import receipt/steps/s09_error_leakage
 
 /// Step 2, which also detects the API format.
 pub fn connect() -> Option(ConnectFn) {
@@ -26,5 +27,6 @@ pub fn all() -> List(#(Int, StepFn)) {
     #(6, s06_jailbreak.run),
     #(7, s07_context.run),
     #(8, s08_tool_substitution.run),
+    #(9, s09_error_leakage.run),
   ]
 }

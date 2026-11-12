@@ -18,7 +18,7 @@ import gleam/string
 import receipt/client
 import receipt/http/types.{
   type Request, type Response, type TransportError, Chunk, Response, Timing,
-}
+} as http
 import receipt/jsonx
 
 pub type Fake {
@@ -49,6 +49,11 @@ pub type Fake {
     rewrites: List(#(String, String)),
     /// Whether tool definitions are honoured.
     supports_tools: Bool,
+    /// Text appended to every error message. `{key}` is replaced by the
+    /// caller's key and `{key16}` by its first 16 characters.
+    error_suffix: String,
+    /// Answer every request, however broken, with HTTP 200.
+    swallows_errors: Bool,
   )
 }
 
@@ -68,6 +73,8 @@ pub fn honest() -> Fake {
     max_prompt_chars: 0,
     rewrites: [],
     supports_tools: True,
+    error_suffix: "",
+    swallows_errors: False,
   )
 }
 
@@ -86,6 +93,8 @@ pub type Chat {
     user_chars: Int,
     /// Names of the tools offered.
     tools: List(String),
+    /// The model name is one Receipt made up to provoke an error.
+    unknown_model: Bool,
   )
 }
 
@@ -113,6 +122,45 @@ pub fn respond(
   fake: Fake,
   request: Request,
 ) -> Result(Response, TransportError) {
+  case route(fake, request) {
+    Ok(response) if response.status >= 400 ->
+      case fake.swallows_errors {
+        True -> json_reply(200, "{\"ok\":true}")
+        False -> Ok(with_error_suffix(fake, request, response))
+      }
+    other -> other
+  }
+}
+
+fn caller_key(request: Request) -> String {
+  case http.header(request.headers, "authorization") {
+    Ok("Bearer " <> key) -> key
+    _ -> ""
+  }
+}
+
+fn with_error_suffix(
+  fake: Fake,
+  request: Request,
+  response: Response,
+) -> Response {
+  case fake.error_suffix {
+    "" -> response
+    suffix -> {
+      let key = caller_key(request)
+      let suffix =
+        suffix
+        |> string.replace("{key16}", string.slice(key, 0, 16))
+        |> string.replace("{key}", key)
+      let body = error_body("Request failed. " <> suffix)
+      Response(..response, body: <<body:utf8>>, chunks: [
+        Chunk(1000, <<body:utf8>>),
+      ])
+    }
+  }
+}
+
+fn route(fake: Fake, request: Request) -> Result(Response, TransportError) {
   let path = request.url
   case
     string.ends_with(path, "/models"),
@@ -213,6 +261,7 @@ pub fn parse_chat(body: String) -> Result(Chat, Nil) {
         stream: option.unwrap(stream, False),
         user_chars: string.length(user),
         tools: tools,
+        unknown_model: string.starts_with(model, "receipt-nonexistent-model-"),
       ))
     }
   }
@@ -332,6 +381,11 @@ fn openai_chat(
     Ok(chat)
       if fake.max_prompt_chars > 0 && fake.max_prompt_chars < chat.user_chars
     -> json_reply(413, error_body("Request too large for this model."))
+    Ok(chat) if chat.unknown_model ->
+      json_reply(
+        404,
+        error_body("The model `" <> chat.model <> "` does not exist."),
+      )
     Ok(chat) if fake.rejects_system && chat.system != "" ->
       json_reply(422, error_body("System messages are not supported."))
     Ok(chat) -> {
