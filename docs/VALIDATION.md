@@ -220,3 +220,26 @@ measure without it. It is recorded as a limit of this test bed, not as a
 pass: the correct relation here ("clone") was **not** demonstrated on a real
 service. The relation logic itself is exercised on the simulated topologies
 in the previous section.
+
+## Comparison with the papers' numbers
+
+A small-scale check, not a replication: one model per step, a handful of
+runs, free-tier quotas. Each row gives what the paper reports, what Receipt
+measured here, and why the two are or are not comparable.
+
+| Step | Paper | Paper reports | Receipt measured | Comparable? |
+| --- | --- | --- | --- | --- |
+| 3 | arXiv:2608.29930 | Billed-token deltas against a trusted reference separate injected from honest endpoints once a validity gate removes unreliable pairs | Offset 0 on the honest relay (30 of 30 pairs valid); offset 151 tokens under the hidden-prompt fault (30 of 30 valid) | Qualitatively. One model, one injected prompt; the paper's holdout rates were not re-measured |
+| 15 | arXiv:2609.20370 | 85.1% detection averaged over activation rates 0–1; error bound worst case 7.30% | Test bed: padding and hidden-prompt conditions flagged (S = 3 of threshold 3), honest relay S = 0. Simulator: 0/200 false positives; 98–100% detection at 25–100% inflation | No. The paper averages over activation rates and four calibrated models; the test bed pads every answer, and `gpt-oss-120b` was not in the paper's calibration set |
+| 16 | arXiv:2608.20732 | Binomial thresholds 59 / 124 / 181 / 234 / 286 probes and M_partial = 15 | Reproduced exactly by `stats/binomial` (unit tests). Simulated topologies: 7 of 8 under the paper preset; real shared gateway inconclusive (no cache telemetry) | Thresholds: yes. Accuracy on real resellers: not measured |
+| 17 | arXiv:2609.00052, arXiv:2506.06975 | AgentProv detection 94.13% at 10 samples per template, 99.84% at 25 (K = 20); 7% false positives under system-prompt injection, 53% for RUT | Swap detected after one batch (E = 54.7); honest relay insufficient data (rate limits); simulator 0/200 false positives, 200/200 detection | Direction only. One substitute model, one run each; the paper's rates come from many model pairs |
+
+What this does and does not show:
+
+- Receipt's implementations behave as the papers describe on the cases
+  tried, and the CacheTracer thresholds match the paper digit for digit.
+- No detection rate or false-positive rate above is a population estimate.
+  With one run per condition, a single result says only that the method
+  can fire, or can stay quiet, in that case.
+- Step 15 inherits the paper's stated limit: misreported hidden reasoning
+  tokens cannot be detected black-box (arXiv:2510.05181).
