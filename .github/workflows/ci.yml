@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          gleam-version: "1.19.2"
+          rebar3-version: "3"
+      - name: Download dependencies
+        run: gleam deps download
+      - name: Check formatting
+        run: gleam format --check src test
+      - name: Build
+        run: gleam build
+      - name: Unit, property and replay tests
+        run: gleam test
+      - name: Build the escript
+        run: gleam run -m gleescript
+      - name: Replay the sample trace through the escript
+        run: scripts/replay-check.sh
+      - name: Test-bed unit tests
+        working-directory: testbed/evilrelay
+        run: gleam test
