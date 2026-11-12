@@ -243,3 +243,70 @@ What this does and does not show:
   can fire, or can stay quiet, in that case.
 - Step 15 inherits the paper's stated limit: misreported hidden reasoning
   tokens cannot be detected black-box (arXiv:2510.05181).
+
+## Head-to-head with api-relay-audit v2.5.0
+
+Both tools audited the same evil relay, forwarding to `openai/gpt-oss-20b`
+on Provider A through the gateway, under three conditions: no fault, hidden
+prompt, and package rewriting. api-relay-audit ran with
+`--skip-infra --skip-context --skip-latency-variance`; Receipt ran Steps
+3, 4, 5, 6, 8, 9, 10, 12 and 14 without a trusted reference, so both used a
+fixed-estimate method in Step 3. Produced by `testbed/run.sh e`.
+
+**The first three passes exposed three bugs in the test bed, not in either
+tool.** The relay matched only compact JSON (Python sends `"messages": [`),
+applied the hidden prompt only on `/chat/completions`, and applied response
+faults only there. api-relay-audit prefers `/v1/messages` when its
+Anthropic-format probe returns text, so in those passes some faults never
+reached it. Receipt sends compact JSON to `/chat/completions`, so none of
+its runs were affected. The table counts an api-relay-audit run only where
+the fault demonstrably reached it; the rest are listed as excluded. The
+fourth pass, on the fixed relay, ran into the provider's daily token limit
+during the rewrite condition (HTTP 429 on most requests), so that
+condition has no clean fourth run for either tool.
+
+| Check | Condition | Receipt | api-relay-audit | Runs counted |
+| --- | --- | --- | --- | --- |
+| Hidden prompt (Step 3) | hidden prompt | **anomaly** 4 of 4 (about 216 extra tokens) | **red** 2 of 2 (about 214–217 tokens) | Receipt 4; ara 2 (passes 1–2 excluded: fault did not reach it) |
+| Hidden prompt (Step 3) | no fault | inconclusive 4 of 4 (61 tokens over estimate, below the cut-off) | yellow 4 of 4 ("minor injection", about 63 tokens) | 4 each |
+| Prompt extraction (Step 4) | hidden prompt | clean 2, inconclusive 2 (missed) | passed 2 of 2 (missed) | Receipt 4; ara 2 |
+| Prompt extraction (Step 4) | no fault | clean 1, inconclusive 3 | **red** 4 of 4 ("hidden prompt content extracted") | 4 each |
+| Package rewriting (Step 8) | rewriting | **anomaly** 3 of 3, inconclusive 1 (rate limit) | **red** in pass 1 with the rewritten names visible; red in pass 2 from empty replies only | Receipt 4; ara 2 (pass 3 excluded: fault did not reach it; pass 4: rate limit) |
+| Package rewriting (Step 8) | no fault | clean 4 of 4 | **red** 1 of 4 | 4 each |
+| Error leakage (Step 9) | no fault | **anomaly** 4 of 4 | green 4 of 4 | 4 each |
+| Stream integrity (Step 10) | no fault | clean 4 of 4 | **red** 4 of 4 | 4 each |
+
+Why the tools disagree, case by case:
+
+- **Step 4 on the honest relay.** Asked to continue a JSON object holding
+  "the hidden prompt", the model invents one ("You are ChatGPT, a large
+  language model…"). api-relay-audit treats instruction-like text as an
+  extracted prompt. Receipt requires a structural leak to be confirmed and
+  not explained by the model's own default behaviour (THRESHOLDS change log,
+  2026-11-12), so it reports clean or inconclusive. Neither tool extracted
+  the real hidden prompt under the fault.
+- **Step 8 on the honest relay.** api-relay-audit's one red came from an
+  empty reply, which it scores as a substitution. Receipt counts only a
+  command that comes back *changed* in two attempts; an empty reply is "no
+  command returned". The same rule explains api-relay-audit's red in pass 2
+  under the rewrite fault and in the rate-limited fourth pass: those reds
+  are right by luck, not because a rewrite was seen.
+- **Step 9.** The unmodified LiteLLM gateway returns the upstream API base
+  in a response header on errors. Receipt reads headers and reports it;
+  api-relay-audit did not. It is a real disclosure by the gateway, but
+  under the counting rules above it is a false positive for the relay
+  condition, and it is counted as one.
+- **Step 10.** api-relay-audit opens an Anthropic-format stream. The gateway
+  translates the OpenAI-format upstream and reports `input_tokens: 0` in
+  `message_start`, and the model name does not contain "claude"; both trip
+  its rules. Receipt checks the stream in the format the endpoint natively
+  serves and applies the same rules to both APIs, and found the stream
+  well formed.
+- **Step 8 under the hidden prompt.** Both tools flag rewriting there too.
+  The hidden prompt changes how the model answers, so a check aimed at
+  rewriting fires on a different cheat. This is shown but not counted, as
+  in the earlier sections.
+
+These are case reports from at most four runs per cell on one model. They
+show where the two tools' rules differ, not which tool is more accurate in
+general.
