@@ -12,6 +12,7 @@ import receipt/steps/s07_context
 import receipt/steps/s08_tool_substitution
 import receipt/steps/s09_error_leakage
 import receipt/steps/s10_stream
+import receipt/steps/s12_fingerprint
 
 /// Step 2, which also detects the API format.
 pub fn connect() -> Option(ConnectFn) {
@@ -30,5 +31,6 @@ pub fn all() -> List(#(Int, StepFn)) {
     #(8, s08_tool_substitution.run),
     #(9, s09_error_leakage.run),
     #(10, s10_stream.run),
+    #(12, s12_fingerprint.run),
   ]
 }
