@@ -11,6 +11,8 @@
 #   matrix b  step 17 under none/swap
 #   matrix c  honest controls: Groq direct and Gemini via the gateway
 #   matrix d  step 16 over two relays that share one gateway
+#   matrix e  head-to-head: api-relay-audit v2.5.0 on the same relay
+#             conditions (set ARA_DIR to its checkout)
 #
 # Keys: the relay accepts any client key, so RECEIPT_API_KEY can be a
 # placeholder. RECEIPT_REFERENCE_KEY must be a Groq key (or be injected by
@@ -94,6 +96,21 @@ case "$matrix" in
     audit "d-shared" "http://127.0.0.1:4100/v1" "qwen/qwen3.8-27b" 16 \
       --profile full --endpoint "relay2=http://127.0.0.1:4200/v1,qwen/qwen3.8-27b,RECEIPT_API_KEY"
     kill "$first" 2>/dev/null || true
+    ;;
+  e)
+    ara="${ARA_DIR:?set ARA_DIR to an api-relay-audit v2.5.0 checkout}"
+    model="openai/gpt-oss-120b"
+    for fault in none inject rewrite; do
+      start_relay "$fault" 4100
+      echo "== e-$fault (api-relay-audit)" >&2
+      (cd "$ara" && python3 audit.py --key-env RECEIPT_API_KEY \
+        --url "http://127.0.0.1:4100/v1" --model "$model" \
+        --skip-infra --skip-context --skip-latency-variance \
+        --format json --output "$out/e-$fault.ara.json") \
+        >"$out/e-$fault.ara.log" 2>&1 || true
+      audit "e-$fault" "http://127.0.0.1:4100/v1" "$model" 3,4,5,6,8,9,10,12,14
+      stop_relay
+    done
     ;;
   *)
     echo "unknown matrix: $matrix" >&2
