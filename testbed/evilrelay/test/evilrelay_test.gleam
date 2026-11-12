@@ -55,6 +55,28 @@ pub fn hidden_prompt_reaches_the_messages_endpoint_test() {
   assert fault.messages_request(NoFault, bare) == bare
 }
 
+pub fn compact_removes_whitespace_only_outside_strings_test() {
+  assert fault.compact("{ \"a b\" : [ 1,\r\n 2 ],\t\"c\": \"x \\\" y\" }")
+    == "{\"a b\":[1,2],\"c\":\"x \\\" y\"}"
+}
+
+pub fn faults_apply_to_spaced_json_test() {
+  let spaced =
+    "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": \"hi there\"}]}"
+  assert string.contains(
+    fault.request(HiddenPrompt, spaced),
+    "\"messages\":[{\"role\":\"system\",\"content\":\"You are ShopAssist",
+  )
+  assert string.contains(
+    fault.request(HiddenPrompt, spaced),
+    "\"content\":\"hi there\"",
+  )
+  assert string.contains(
+    fault.request(ModelSwap("other"), spaced),
+    "\"model\":\"other\"",
+  )
+}
+
 pub fn swap_replaces_the_model_and_hides_it_in_the_reply_test() {
   let swap = ModelSwap("openai/gpt-oss-20b")
   assert fault.requested_model(body) == "qwen/qwen3.8-27b"

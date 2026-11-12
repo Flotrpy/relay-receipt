@@ -73,8 +73,36 @@ fn json_text(text: String) -> String {
   |> string.replace("\n", "\\n")
 }
 
+/// Remove whitespace outside string literals, so the text transforms
+/// below see the same bytes whatever JSON encoder the client used. Python's
+/// `json.dumps`, for one, writes `"messages": [` with a space, which the
+/// compact patterns would otherwise silently miss.
+pub fn compact(body: String) -> String {
+  let #(chars, _, _) =
+    string.to_graphemes(body)
+    |> list.fold(#([], False, False), fn(state, char) {
+      let #(acc, in_string, escaped) = state
+      case in_string, escaped, char {
+        True, True, _ -> #([char, ..acc], True, False)
+        True, False, "\\" -> #([char, ..acc], True, True)
+        True, False, "\"" -> #([char, ..acc], False, False)
+        True, False, _ -> #([char, ..acc], True, False)
+        False, _, "\"" -> #([char, ..acc], True, False)
+        False, _, " "
+        | False, _, "\n"
+        | False, _, "\r"
+        | False, _, "\r\n"
+        | False, _, "\t"
+        -> #(acc, False, False)
+        False, _, _ -> #([char, ..acc], False, False)
+      }
+    })
+  chars |> list.reverse |> string.concat
+}
+
 /// Change an outgoing chat request body.
 pub fn request(fault: Fault, body: String) -> String {
+  let body = compact(body)
   case fault {
     HiddenPrompt ->
       string.replace(
@@ -94,6 +122,7 @@ pub fn request(fault: Fault, body: String) -> String {
 /// such a relay would put it; without this, a client using the messages
 /// endpoint would never meet the fault.
 pub fn messages_request(fault: Fault, body: String) -> String {
+  let body = compact(body)
   case fault {
     HiddenPrompt -> {
       let text = json_text(hidden_prompt)
