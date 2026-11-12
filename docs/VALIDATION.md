@@ -23,6 +23,74 @@ the providers have been informed; see [SECURITY.md](../SECURITY.md).
 Thresholds were not changed in response to any test-bed or control result;
 the changes logged in [THRESHOLDS.md](./THRESHOLDS.md) predate them.
 
+## Test bed: parity and inflation steps under five conditions
+
+Receipt audited the evil relay (`testbed/`) with each condition switched on
+in turn. The relay forwards to the open-weight model `openai/gpt-oss-120b`
+on Provider A through an unmodified LiteLLM gateway; the trusted reference
+is the same model on Provider A directly. One run per condition, seed
+20261112, 10 requests per minute. Produced by `testbed/run.sh a` and
+`evilrelay/matrix`.
+
+| Condition | Step 3 | Step 4 | Step 5 | Step 6 | Step 8 | Step 9 | Step 10 | Step 15 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| a-inject | **anomaly** | clean | clean | clean | **anomaly** | **anomaly** | clean | **anomaly** |
+| a-none | clean | clean | clean | inconclusive | clean | **anomaly** | clean | clean |
+| a-pad | clean | inconclusive | **anomaly** | clean | **anomaly** | **anomaly** | clean | **anomaly** |
+| a-rewrite | clean | clean | clean | clean | **anomaly** | **anomaly** | clean | clean |
+| a-swap | clean | inconclusive | clean | inconclusive | clean | **anomaly** | clean | clean |
+
+| Step | TP | FN | Inconclusive (fault) | FP | TN | Inconclusive (honest) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 3 | 1 | 0 | 0 | 0 | 1 | 0 |
+| 4 | 0 | 1 | 0 | 0 | 1 | 0 |
+| 5 | 0 | 1 | 0 | 0 | 1 | 0 |
+| 6 | 0 | 1 | 0 | 0 | 0 | 1 |
+| 8 | 1 | 0 | 0 | 0 | 1 | 0 |
+| 9 | 0 | 0 | 0 | 1 | 0 | 0 |
+| 10 | 0 | 0 | 0 | 0 | 1 | 0 |
+| 15 | 1 | 0 | 0 | 0 | 1 | 0 |
+Counting rules: a fault is a positive only for the steps aimed at it
+(inject: 3, 4, 5, 6; pad: 15; rewrite: 8; swap: 17, tested separately
+below). An anomaly from another step under a fault is shown in the grid but
+not counted as a false positive, because the relay really is dishonest.
+Inconclusive is counted on its own, never as clean. With one run per
+condition these are case reports, not rates.
+
+### What happened, condition by condition
+
+- **none (honest relay).** Clean on Steps 3, 4, 5, 8, 10 and 15. Step 6 was
+  inconclusive: the role-play probe gets an in-character reply that differs
+  between the endpoint and the reference, so it is neither a refusal nor
+  explained by the reference. Step 9's anomaly is real: LiteLLM adds an
+  `x-litellm-model-api-base` response header naming its upstream API host,
+  and the relay passes it on. That is exactly the kind of plumbing leak
+  Step 9 looks for; it is counted as a false positive above only because
+  this condition is labelled honest.
+- **inject (hidden prompt, ~170 tokens).** Step 3 found it, measuring 151
+  extra prompt tokens per request against the reference. Steps 4, 5 and 6
+  missed it: this model kept the injected prompt secret as instructed and
+  still obeyed the caller's own system prompt, so nothing outranked it in
+  practice. Two off-target anomalies, both caused by the injected prompt's
+  "always answer fully" instruction: Step 15 (the prompt lengthens answers,
+  which is a provider-side inflation in the sense of arXiv:2609.20370) and
+  Step 8, where the model wrapped the correct `pip install requests==2.31.0`
+  in prose. Step 8's report attributes this to "rewriting on the return
+  path", which is the wrong mechanism here: the command was intact, the
+  reply around it was not. This is a known limitation of a text-echo probe
+  and is left as is, because Step 8's rule was fixed before testing.
+- **pad (billed padding).** Step 15 found it (S = 3 after two blocks, ten
+  questions). Steps 5 and 8 also fired, because the padding appended to
+  every answer breaks a one-word reply and trails an echoed command. For
+  Step 8 "changed on the return path" is accurate; Step 5's explanation
+  ("something outranks the caller's system prompt") is not, since the
+  change was made after the model answered.
+- **swap (gpt-oss-20b served as gpt-oss-120b).** No step in this matrix
+  noticed, as expected: the two models share a tokenizer (Step 3 offset 0)
+  and behave similarly on these probes. Step 17 is the step aimed at this.
+- **rewrite (package names changed in replies).** Step 8 found it in 6 of 6
+  probes, including both structured tool-call probes.
+
 ## Steps 15 and 17 on the simulated relay
 
 Produced by `gleam run -m tools/simulate -- 200`. Every run uses a fresh
