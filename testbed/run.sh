@@ -19,11 +19,12 @@ set -euo pipefail
 
 matrix="${1:?matrix a|b|c|d}"
 out="${2:?output directory}"
+mkdir -p "$out"
+out="$(cd "$out" && pwd)"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 receipt="$root/receipt"
 relay_dir="$root/testbed/evilrelay"
 groq="https://api.groq.com/openai/v1"
-mkdir -p "$out"
 
 : "${RECEIPT_API_KEY:=sk-testbed-client-0000000000000000}"
 : "${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY}"
