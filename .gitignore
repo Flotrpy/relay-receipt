@@ -27,3 +27,6 @@ erl_crash.dump
 
 # Test bed build output
 /testbed/evilrelay/build/
+
+# Test bed results name real providers; they stay local until disclosure is agreed
+/testbed/results/
