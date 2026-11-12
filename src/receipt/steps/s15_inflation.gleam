@@ -309,8 +309,8 @@ pub fn build(pairs: List(Pair), finished: Bool) -> StepResult {
     )
     |> step.with_error_rate(step.ErrorRate(
       "false_positive",
-      0.0183,
-      "measured in arXiv:2609.20370 on four open-weight models: 0.02% with no system prompt, 1.83% on average and 7.30% at worst with a benign system prompt; not re-measured for this endpoint's model",
+      0.073,
+      "the worst case measured in arXiv:2609.20370 on four open-weight models (0.02% on average with no system prompt, 1.83% on average and 7.30% at worst with a benign system prompt); not re-measured for this endpoint's model",
     ))
     |> step.with_details([
       Paragraph(
