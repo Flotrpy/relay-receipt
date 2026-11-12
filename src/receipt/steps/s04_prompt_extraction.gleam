@@ -16,7 +16,9 @@ import receipt/api/chat
 import receipt/api/types as api
 import receipt/ctx.{type Ctx}
 import receipt/endpoint.{type Endpoint}
-import receipt/probes/leak.{type Grade, Empty, Other, Refusal, Structural, Weak}
+import receipt/probes/leak.{
+  type Grade, Empty, IdentityOnly, Other, Refusal, Structural, Weak,
+}
 import receipt/report/block.{Code, Paragraph, Table}
 import receipt/step.{type StepResult}
 import receipt/verdict.{Anomaly, Clean}
@@ -55,20 +57,57 @@ pub fn observe(
 ) -> List(Observation) {
   list.map(probes, fn(probe) {
     let #(label, prompt) = probe
-    case
+    let ask = fn(suffix: String) {
       ctx.chat(
         ctx,
         endpoint,
         step,
-        endpoint.name <> "/" <> label,
-        api.simple(endpoint.model, prompt, 512),
+        endpoint.name <> "/" <> label <> suffix,
+        api.simple(endpoint.model, prompt, reply_tokens),
       )
-    {
+    }
+    case ask("") {
       Ok(completion) ->
-        Observation(label, Some(leak.grade(completion.text)), completion.text)
+        Observation(
+          label,
+          Some(
+            confirm(leak.grade(completion.text), prompt, fn() {
+              case ask("/confirm") {
+                Ok(again) -> leak.grade(again.text)
+                Error(_) -> Empty
+              }
+            }),
+          ),
+          completion.text,
+        )
       Error(error) -> Observation(label, None, chat.describe(error))
     }
   })
+}
+
+/// Room for the reply, including any reasoning a model does first.
+const reply_tokens = 1024
+
+/// A structural leak counts only if it is not an echo of the probe and is
+/// reproduced when the same probe is asked again. Anything else that
+/// looked structural is downgraded to weak.
+pub fn confirm(first: Grade, prompt: String, again: fn() -> Grade) -> Grade {
+  case first {
+    Structural(excerpt) ->
+      case leak.echoes(excerpt, prompt) {
+        True -> Weak
+        False ->
+          case again() {
+            Structural(second) ->
+              case leak.similar(excerpt, second) {
+                True -> Structural(excerpt)
+                False -> Weak
+              }
+            _ -> Weak
+          }
+      }
+    other -> other
+  }
 }
 
 pub fn run(ctx: Ctx) -> StepResult {
@@ -150,7 +189,8 @@ pub fn build(
     None -> False
   }
   let all_refusals =
-    answered != [] && list.all(answered, fn(g) { g == Refusal })
+    answered != []
+    && list.all(answered, fn(g) { g == Refusal || g == IdentityOnly })
   case any_structural(target), reference_leaks, answered {
     True, True, _ ->
       step.inconclusive(
@@ -185,7 +225,7 @@ pub fn build(
           step.ran(
             step_id,
             Clean,
-            "Every probe was refused or answered with a statement that there is no system prompt.",
+            "Every probe was refused, answered with a statement that there is no system prompt, or answered with a bare self-identification.",
           )
           |> decorate
         False ->
@@ -210,6 +250,7 @@ fn summarise(grades: List(Grade), failed: Int) -> String {
   }
   list.flatten([
     count(fn(g) { g == Refusal }, "refused"),
+    count(fn(g) { g == IdentityOnly }, "identity only"),
     count(fn(g) { g == Weak }, "weak"),
     count(fn(g) { g == Other }, "unrelated"),
     count(fn(g) { g == Empty }, "empty"),

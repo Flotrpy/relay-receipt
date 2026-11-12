@@ -154,7 +154,7 @@ pub fn sizes(
 fn attempt(ctx: Ctx, size: Int, round: Int, prng: Prng) -> #(Attempt, Prng) {
   let #(markers, prng) = canaries(prng)
   let params =
-    api.simple(ctx.target.model, build_prompt(markers, size), 256)
+    api.simple(ctx.target.model, build_prompt(markers, size), 512)
     |> api.with_temperature(0.0)
   let label = int.to_string(size) <> "/" <> int.to_string(round)
   let outcome =

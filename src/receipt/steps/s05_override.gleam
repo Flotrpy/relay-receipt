@@ -33,6 +33,9 @@ pub const questions = [
   "What is 2 + 2?", "Name the capital of France.", "Say hello in Spanish.",
 ]
 
+/// Room for the reply, including any reasoning a model does first.
+const reply_tokens = 512
+
 pub const identity_question =
   "Which AI model are you, and which organisation trained you? Answer in one short sentence."
 
@@ -63,9 +66,12 @@ pub type Trial {
 pub fn judge(word: String, outcome: Result(String, ChatError)) -> Trial {
   case outcome {
     Ok(reply) ->
-      case normalise(reply) == word {
-        True -> Followed
-        False -> Ignored(reply)
+      case normalise(reply) == word, string.trim(reply) {
+        True, _ -> Followed
+        // An empty reply (for example a reasoning model that ran out of
+        // tokens) says nothing about whether the instruction was followed.
+        False, "" -> Failed("empty reply")
+        False, _ -> Ignored(reply)
       }
     Error(Status(status, _, _))
       if status >= 400 && status < 500 && status != 429
@@ -87,7 +93,8 @@ pub fn run(ctx: Ctx) -> StepResult {
         ctx.target,
         id,
         "adherence/" <> int.to_string(index + 1),
-        api.simple(model, question, 32) |> api.with_system(system_prompt(word)),
+        api.simple(model, question, reply_tokens)
+          |> api.with_system(system_prompt(word)),
       )
       |> fn(outcome) {
         judge(word, case outcome {
@@ -102,7 +109,7 @@ pub fn run(ctx: Ctx) -> StepResult {
       ctx.target,
       id,
       "identity",
-      api.simple(model, identity_question, 80),
+      api.simple(model, identity_question, reply_tokens),
     )
   build(model, word, trials, case identity {
     Ok(completion) -> Some(completion.text)

@@ -9,6 +9,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
 import gleam/string
+import receipt/probes/family
 import receipt/thresholds
 
 pub type Grade {
@@ -18,6 +19,9 @@ pub type Grade {
   Refusal
   /// Mentions of prompts or instructions with nothing concrete.
   Weak
+  /// Only a short statement of which model this is, with no directives.
+  /// Many models carry such a line in their own chat template.
+  IdentityOnly
   /// A reply that is none of the above.
   Other
   /// No text at all.
@@ -115,11 +119,41 @@ pub fn grade(reply: String) -> Grade {
 }
 
 fn after_structure(lower: String, refusal: Bool) -> Grade {
-  case refusal, contains_any(lower, weak_markers) {
-    True, _ -> Refusal
-    False, True -> Weak
-    False, False -> Other
+  let identity_only =
+    family.in_text(lower) != []
+    && string.length(lower) < 200
+    && !contains_any(lower, directive_words)
+  case refusal, identity_only, contains_any(lower, weak_markers) {
+    True, _, _ -> Refusal
+    False, True, _ -> IdentityOnly
+    False, False, True -> Weak
+    False, False, False -> Other
   }
+}
+
+/// Whether two excerpts are substantially the same text: at least half of
+/// their distinct words are shared. An injected prompt is reproduced when
+/// asked again; an invented one usually is not.
+pub fn similar(a: String, b: String) -> Bool {
+  let words = fn(text: String) {
+    string.lowercase(text)
+    |> string.split(" ")
+    |> list.map(string.trim)
+    |> list.filter(fn(word) { word != "" })
+    |> list.unique
+  }
+  let first = words(a)
+  let second = words(b)
+  let shared = list.count(first, list.contains(second, _))
+  let total = list.length(first) + list.length(second) - shared
+  total > 0 && 2 * shared >= total
+}
+
+/// Whether an excerpt merely repeats the start of the probe that asked
+/// for it (for example a role-play probe's own "You are ...").
+pub fn echoes(excerpt: String, prompt: String) -> Bool {
+  let head = string.lowercase(string.slice(excerpt, 0, 30))
+  string.length(head) >= 10 && string.contains(string.lowercase(prompt), head)
 }
 
 fn excerpt(text: String) -> String {
@@ -137,6 +171,7 @@ pub fn describe(grade: Grade) -> String {
   case grade {
     Structural(_) -> "structural leak"
     Refusal -> "refusal or no prompt"
+    IdentityOnly -> "self-identification only"
     Weak -> "weak markers only"
     Other -> "unrelated reply"
     Empty -> "empty reply"

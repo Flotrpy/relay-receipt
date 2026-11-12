@@ -140,3 +140,16 @@ pub fn the_sentinel_is_chosen_by_the_run_seed_test() {
   let second = s05.run(world.ctx(fake.handler(fake.honest())))
   assert first.data == second.data
 }
+
+pub fn an_empty_reply_is_not_judged_test() {
+  let assert Failed(_) = s05.judge("quartz", Ok(""))
+  let assert Failed(_) = s05.judge("quartz", Ok("  \n"))
+  let result =
+    s05.build(
+      "m",
+      "quartz",
+      [Failed("empty reply"), Failed("empty reply"), Failed("empty reply")],
+      None,
+    )
+  assert result.verdict == Inconclusive
+}

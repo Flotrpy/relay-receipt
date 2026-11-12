@@ -174,7 +174,7 @@ fn result_nil(result: Result(a, b)) -> Result(a, Nil) {
 fn attempt(ctx: Ctx, probe: Probe, round: Int) -> Attempt {
   let label = probe.label <> "/" <> int.to_string(round)
   let base = fn(prompt: String) {
-    api.simple(ctx.target.model, prompt, 128) |> api.with_temperature(0.0)
+    api.simple(ctx.target.model, prompt, 512) |> api.with_temperature(0.0)
   }
   case probe.kind {
     Echo ->

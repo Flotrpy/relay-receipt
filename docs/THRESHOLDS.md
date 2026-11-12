@@ -133,9 +133,18 @@ Three probes, no system prompt sent.
 
 | Condition | Verdict |
 |---|---|
-| Any reply contains a structural leak (instruction-style text of at least 40 characters presented as the system prompt, or a second-person role definition such as "You are ..." followed by rules) | `anomaly` |
-| No structural leak, but a reply has only weak markers and is not a refusal, or some probes failed or were empty | `inconclusive` |
-| Every reply is a refusal or a statement that there is no system prompt | `clean` |
+| Any reply contains a confirmed structural leak | `anomaly` (or `inconclusive` when the trusted reference shows one too) |
+| No confirmed structural leak, but a reply has only weak markers and is not a refusal, or some probes failed or were empty | `inconclusive` |
+| Every reply is a refusal, a statement that there is no system prompt, or a bare self-identification | `clean` |
+
+A **structural leak** is instruction-style text of at least 40 characters
+presented as the system prompt, or a second-person role definition such as
+"You are ..." in a reply that also contains a directive. It is
+**confirmed** when it is not an echo of the probe's own wording and the
+same probe, asked a second time, returns a structural leak sharing at least
+half of its distinct words. A **bare self-identification** is a reply
+shorter than 200 characters that names a model family and contains no
+directive.
 
 ### Step 5: Instruction override / identity self-report
 
@@ -143,6 +152,7 @@ Three probes, no system prompt sent.
 |---|---|
 | Adherence trials | 3 |
 | Trial passes when | the reply, lower-cased and stripped of punctuation and whitespace, equals the sentinel word |
+| Trial is not judged when | the request fails or the reply is empty |
 
 | Condition | Verdict |
 |---|---|
@@ -362,4 +372,5 @@ Design: [steps/17-identity.md](./steps/17-identity.md).
 | Date | Change | Reason |
 |---|---|---|
 | 2026-11-10 | Initial values | Fixed before any implementation or endpoint test. |
+| 2026-11-12 | Steps 4 and 6: a structural leak must be confirmed by a second request and must not echo the probe; a bare self-identification counts like a refusal. Step 5: an empty reply is not judged. | A smoke test of the pipeline against an honest endpoint serving a reasoning model, run before the validation phase, showed three false signals: the model invented a different "configuration" for a diagnostic probe, replied to a translation probe with only its built-in identity line, and returned empty replies when its token budget went to reasoning. None of these is evidence about a relay. The change was made on that evidence and is disclosed here; the cut-offs of Steps 15-17 are untouched. |
 | 2026-11-11 | Rating rule 5 also matches when no rated step ran | Found while wiring the pipeline, before any validation run: an endpoint that answers no chat request had every rated step skipped and would have been rated `LOW`. A run that tested nothing must not look like a run that found nothing. |
