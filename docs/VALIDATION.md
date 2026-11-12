@@ -186,7 +186,7 @@ One run per condition, seed 20261112, 20 requests per minute. Produced by
 
 | Condition | Verdict | Output | E-value | Batches | Requests sent / failed |
 | --- | --- | --- | --- | --- | --- |
-| b-swap | **anomaly** | different | 54.7 | 1 | 310 / 7 (all 400s from tool probes) |
+| b-swap | **anomaly** | different (false-positive bound 5%, anytime-valid) | 54.7 | 1 | 310 / 0 |
 | b-none | inconclusive | insufficient data | 0.67 | 2 (1 valid) | 468 / 101 (rate limits) |
 
 | Step | TP | FN | Inconclusive (fault) | FP | TN | Inconclusive (honest) |
