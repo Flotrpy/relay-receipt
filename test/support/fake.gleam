@@ -29,6 +29,9 @@ pub type Fake {
     hidden_prompt: String,
     /// Whether `usage` is reported at all.
     reports_usage: Bool,
+    /// Characters per billed token. Honest relays of the same model agree;
+    /// a different value imitates a different tokenizer.
+    chars_per_token: Int,
   )
 }
 
@@ -40,6 +43,7 @@ pub fn honest() -> Fake {
     models: ["test-model", "other-model"],
     hidden_prompt: "",
     reports_usage: True,
+    chars_per_token: 4,
   )
 }
 
@@ -59,13 +63,18 @@ pub type Chat {
 
 /// A rough token count: one token per four characters, rounded up.
 pub fn tokens(text: String) -> Int {
-  { string.length(text) + 3 } / 4
+  tokens_at(text, 4)
+}
+
+fn tokens_at(text: String, chars_per_token: Int) -> Int {
+  { string.length(text) + chars_per_token - 1 } / chars_per_token
 }
 
 /// Tokens the fake bills for a prompt: a fixed template overhead plus the
 /// text, plus any hidden prompt.
 pub fn billed_prompt_tokens(fake: Fake, chat: Chat) -> Int {
-  7 + tokens(chat.system) + tokens(chat.all_text) + tokens(fake.hidden_prompt)
+  let count = tokens_at(_, fake.chars_per_token)
+  7 + count(chat.system) + count(chat.all_text) + count(fake.hidden_prompt)
 }
 
 pub fn handler(fake: Fake) -> client.Handler {
