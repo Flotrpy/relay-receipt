@@ -54,6 +54,9 @@ pub type Fake {
     error_suffix: String,
     /// Answer every request, however broken, with HTTP 200.
     swallows_errors: Bool,
+    /// A defect in streamed responses: "", "no_done", "two_ids",
+    /// "double_finish", "after_done", "bad_json" or "model_switch".
+    stream_fault: String,
   )
 }
 
@@ -75,6 +78,7 @@ pub fn honest() -> Fake {
     supports_tools: True,
     error_suffix: "",
     swallows_errors: False,
+    stream_fault: "",
   )
 }
 
@@ -386,6 +390,7 @@ fn openai_chat(
         404,
         error_body("The model `" <> chat.model <> "` does not exist."),
       )
+    Ok(chat) if chat.stream -> Ok(openai_stream(fake, chat))
     Ok(chat) if fake.rejects_system && chat.system != "" ->
       json_reply(422, error_body("System messages are not supported."))
     Ok(chat) -> {
@@ -471,6 +476,85 @@ fn openai_chat(
       |> json_reply(200, _)
     }
   }
+}
+
+fn stream_chunk(
+  id: String,
+  model: String,
+  content: String,
+  finish: json.Json,
+) -> String {
+  json.object([
+    #("id", json.string(id)),
+    #("object", json.string("chat.completion.chunk")),
+    #("model", json.string(model)),
+    #(
+      "choices",
+      json.preprocessed_array([
+        json.object([
+          #("index", json.int(0)),
+          #("delta", json.object([#("content", json.string(content))])),
+          #("finish_reason", finish),
+        ]),
+      ]),
+    ),
+  ])
+  |> json.to_string
+}
+
+/// A streamed OpenAI-style answer, one event per network chunk.
+fn openai_stream(fake: Fake, chat: Chat) -> Response {
+  let fault = fake.stream_fault
+  let id = "chatcmpl-fake-stream"
+  let second_id = case fault {
+    "two_ids" -> "chatcmpl-other"
+    _ -> id
+  }
+  let second_model = case fault {
+    "model_switch" -> "cheaper-model"
+    _ -> chat.model
+  }
+  let stop = json.string("stop")
+  let payloads =
+    list.flatten([
+      [
+        stream_chunk(id, chat.model, "1 2 ", json.null()),
+        case fault {
+          "bad_json" -> "{\"id\": broken"
+          _ -> stream_chunk(second_id, second_model, "3 4 5", json.null())
+        },
+        stream_chunk(id, chat.model, "", stop),
+      ],
+      case fault {
+        "double_finish" -> [stream_chunk(id, chat.model, "", stop)]
+        _ -> []
+      },
+      case fault {
+        "no_done" -> []
+        _ -> ["[DONE]"]
+      },
+      case fault {
+        "after_done" -> [stream_chunk(id, chat.model, " and more", json.null())]
+        _ -> []
+      },
+    ])
+  let chunks =
+    list.index_map(payloads, fn(payload, index) {
+      Chunk(100_000 + index * 20_000, <<
+        "data: ":utf8,
+        payload:utf8,
+        "\n\n":utf8,
+      >>)
+    })
+  Response(
+    status: 200,
+    headers: [#("content-type", "text/event-stream")],
+    body: list.fold(chunks, <<>>, fn(acc, chunk) {
+      <<acc:bits, chunk.data:bits>>
+    }),
+    chunks: chunks,
+    timing: Timing(Some(90_000), Some(100_000), Some(200_000)),
+  )
 }
 
 /// Apply the relay's return-path replacements.
