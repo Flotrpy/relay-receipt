@@ -38,8 +38,8 @@ user (runs Receipt) --> relay R --> ... --> upstream provider --> model
 - **Upstream.** Whatever the relay forwards to. It may be the model's
   original provider, a cloud host, or another relay.
 - **Trusted reference.** A provider the user chooses to trust for the
-  purpose of comparison (in this project: the free tiers of Groq and Google
-  Gemini). Trust here is an assumption made by the user, not something
+  purpose of comparison (in this project's test bed: a free hosted tier).
+  Trust here is an assumption made by the user, not something
   Receipt verifies.
 
 ## What a dishonest relay controls

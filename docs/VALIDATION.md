@@ -317,7 +317,7 @@ Receipt audited two hosted services that are assumed honest. The
 specification asks that these come out clean; the results are reported as
 they came out.
 
-**Provider A, direct.** `allam-2-7b`, with the same model on Provider A as
+**Provider A, direct.** A 7B open-weight model, with the same model on Provider A as
 the trusted reference, Steps 1, 3–6, 8–10 and 12–15, 6 requests per minute
 per endpoint, seed 20261112. 148 requests, none rate-limited. Step 7 was
 left out because this model's 4k-token context cannot hold the scan's
@@ -329,7 +329,7 @@ free daily token quota had been spent by the test-bed matrices, and 47 of
 and the rest were inconclusive, as the specification requires for rate
 limits. It is kept out of the table.
 
-**Provider B, through the gateway.** `gemma-4-26b-a4b-it` behind the
+**Provider B, through the gateway.** A 26B open-weight model behind the
 unmodified LiteLLM gateway, no trusted reference, Steps 3–6, 8–10 and
 12–15. Provider B's OpenAI-compatible endpoint could not be authenticated
 from the environment the runs were made in, so the gateway was the only

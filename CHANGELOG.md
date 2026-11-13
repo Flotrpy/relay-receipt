@@ -129,6 +129,9 @@ Built before the parity steps because several of them use it.
   explained; a comparison with the papers' numbers.
 - Validation summary in the README.
 - No threshold was changed in response to a validation result.
+- Provider names were taken out of the test bed and documents: the gateway
+  config is an example with environment variables, and `run.sh` reads the
+  reference URL and the gateway control model from the environment.
 
 ### Phase H: polish
 
