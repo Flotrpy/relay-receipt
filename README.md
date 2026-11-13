@@ -101,11 +101,12 @@ Inconclusive is counted on its own, never as clean.
 | 9 Error leakage | (honest relay only) | – | – | – | 1 | 0 | 0 |
 | 10 Stream integrity | (honest relay only) | – | – | – | 0 | 1 | 0 |
 | 15 Inflation probe | billed padding | 1 | 0 | 0 | 0 | 1 | 0 |
-| 17 Identity test | model swap | 1 | 0 | 0 | 0 | 0 | 1 |
+| 17 Identity test | model swap | 1 | 0 | 0 | 0 | 1 | 1 |
 
 The Step 9 false positive is a real header the unmodified LiteLLM gateway
-returns; the Step 17 honest run ran out of free quota and correctly said
-"insufficient data" rather than "same".
+returns. Step 17 on the honest relay was run twice: the first run ran out
+of free quota and correctly said "insufficient data" rather than "same";
+the re-run on a fresh quota said "same" (E = 0.385). Both are counted.
 
 **Simulator.** 200 seeded runs each: Step 15 raised no false positives and
 caught 98–100% of 25–100% inflation; Step 17 raised no false positives and

@@ -129,6 +129,12 @@ Built before the parity steps because several of them use it.
   explained; a comparison with the papers' numbers.
 - Validation summary in the README.
 - No threshold was changed in response to a validation result.
+- Re-ran the two validations the free quota had cut short, on 2026-11-13:
+  Step 17 on the honest relay now comes out "same" (E = 0.385, 499 sent /
+  12 failed), kept alongside the earlier "insufficient data" run; the
+  head-to-head rewrite condition on the fixed relay shows the rewritten
+  package names in api-relay-audit's table, and Receipt again flagged
+  6 of 6 commands.
 - Provider names were taken out of the test bed and documents: the gateway
   config is an example with environment variables, and `run.sh` reads the
   reference URL and the gateway control model from the environment.

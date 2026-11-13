@@ -181,17 +181,18 @@ Receipt ran Step 17 alone against the evil relay, claiming the open-weight
 model `qwen/qwen3.8-27b` on Provider A, with the same model on Provider A
 directly as the trusted reference. Under `swap` the relay served
 `openai/gpt-oss-20b` instead and reported the claimed name in every reply.
-One run per condition, seed 20261112, 20 requests per minute. Produced by
+One run per condition (the honest one was re-run, below), seed 20261112, 20 requests per minute. Produced by
 `testbed/run.sh b`.
 
 | Condition | Verdict | Output | E-value | Batches | Requests sent / failed |
 | --- | --- | --- | --- | --- | --- |
 | b-swap | **anomaly** | different (false-positive bound 5%, anytime-valid) | 54.7 | 1 | 310 / 0 |
-| b-none | inconclusive | insufficient data | 0.67 | 2 (1 valid) | 468 / 101 (rate limits) |
+| b-none (first run, 2026-11-12) | inconclusive | insufficient data | 0.67 | 2 (1 valid) | 468 / 101 (rate limits) |
+| b-none (re-run, 2026-11-13) | clean | same (not distinguished at this budget) | 0.385 | 2 (2 valid tool-choice, 1 valid rank uniformity) | 499 / 12 (rate limits) |
 
 | Step | TP | FN | Inconclusive (fault) | FP | TN | Inconclusive (honest) |
 | --- | --- | --- | --- | --- | --- | --- |
-| 17 | 1 | 0 | 0 | 0 | 0 | 1 |
+| 17 | 1 | 0 | 0 | 0 | 1 (re-run) | 1 (first run) |
 
 - **Swap.** The first batch already passed the rejection threshold
   (E ≥ 20), so the sequential test stopped after one batch, as designed.
@@ -201,9 +202,20 @@ One run per condition, seed 20261112, 20 requests per minute. Produced by
   relay and the reference draw on the same free-tier quota, so every probe
   costs it twice. "Same" needs the full batch budget, so Receipt reported
   insufficient data rather than claim the models match. This is the
-  behaviour the specification asks for, but it means the honest-relay case
-  has **not** been shown to come out "same" on a real model. A re-run needs
-  about 700 more requests on that model than the daily free quota had left.
+  behaviour the specification asks for, but that run did not show the
+  honest-relay case coming out "same".
+- **No fault, re-run.** Repeated the next day on a fresh daily quota at 6
+  requests per minute (scratch script equivalent to `testbed/run.sh b`
+  with `--rpm 6`; same seed, model and reference). Both batches had a valid
+  tool-choice component (p = 0.996 and p = 0.917) and the first had a valid
+  rank-uniformity component (p = 0.93); the second rank-uniformity
+  component was invalidated by 12 HTTP 429 responses. One component with
+  valid batches across the full budget is what "same" requires, so the
+  outcome was **same** with E = 0.385, far below the threshold of 20. No
+  template had a Holm-adjusted p below 1 (largest distance 0.32, on
+  `text_message`). Both runs are kept in the table above; the first is not
+  replaced by the second. "Same" means not distinguished at 10 samples per
+  template, not that the two endpoints are proven identical.
 
 ## Test bed: Step 16 on two relays that share one gateway
 
@@ -232,7 +244,7 @@ measured here, and why the two are or are not comparable.
 | 3 | arXiv:2608.29930 | Token counts are comparable across endpoints when the shift-invariant score is at least 0.725 (frozen threshold) | Score 1.0 in both runs; modal offset 0 on the honest relay, 151 tokens under the hidden-prompt fault (30 of 30 pairs valid each) | Qualitatively. One model, one injected prompt; the paper's holdout rates were not re-measured |
 | 15 | arXiv:2609.20370 | 85.1% detection averaged over activation rates 0–1; error bound worst case 7.30% | Test bed: padding and hidden-prompt conditions flagged (S = 3 of threshold 3), honest relay S = 0. Simulator: 0/200 false positives; 98–100% detection at 25–100% inflation | No. The paper averages over activation rates and four calibrated models; the test bed pads every answer, and `gpt-oss-120b` was not in the paper's calibration set |
 | 16 | arXiv:2608.20732 | Binomial thresholds 59 / 124 / 181 / 234 / 286 probes and M_partial = 15 | Reproduced exactly by `stats/binomial` (unit tests). Simulated topologies: 7 of 8 under the paper preset; real shared gateway inconclusive (no cache telemetry) | Thresholds: yes. Accuracy on real resellers: not measured |
-| 17 | arXiv:2609.00052, arXiv:2506.06975 | AgentProv detection 94.13% at 10 samples per template, 99.84% at 25 (K = 20); 7% false positives under system-prompt injection, 53% for RUT | Swap detected after one batch (E = 54.7); honest relay insufficient data (rate limits); simulator 0/200 false positives, 200/200 detection | Direction only. One substitute model, one run each; the paper's rates come from many model pairs |
+| 17 | arXiv:2609.00052, arXiv:2506.06975 | AgentProv detection 94.13% at 10 samples per template, 99.84% at 25 (K = 20); 7% false positives under system-prompt injection, 53% for RUT | Swap detected after one batch (E = 54.7); honest relay insufficient data on the first run (rate limits), same on the re-run (E = 0.385); simulator 0/200 false positives, 200/200 detection | Direction only. One substitute model, one run each; the paper's rates come from many model pairs |
 
 What this does and does not show:
 
@@ -263,7 +275,9 @@ its runs were affected. The table counts an api-relay-audit run only where
 the fault demonstrably reached it; the rest are listed as excluded. The
 fourth pass, on the fixed relay, ran into the provider's daily token limit
 during the rewrite condition (HTTP 429 on most requests), so that
-condition has no clean fourth run for either tool.
+condition has no clean fourth run for either tool. A fifth pass, the next
+day on a fresh quota, re-ran only the rewrite condition on the fixed relay
+for both tools (no HTTP 429 in Receipt's trace).
 
 | Check | Condition | Receipt | api-relay-audit | Runs counted |
 | --- | --- | --- | --- | --- |
@@ -271,7 +285,7 @@ condition has no clean fourth run for either tool.
 | Hidden prompt (Step 3) | no fault | inconclusive 4 of 4 (61 tokens over estimate, below the cut-off) | yellow 4 of 4 ("minor injection", about 63 tokens) | 4 each |
 | Prompt extraction (Step 4) | hidden prompt | clean 2, inconclusive 2 (missed) | passed 2 of 2 (missed) | Receipt 4; ara 2 |
 | Prompt extraction (Step 4) | no fault | clean 1, inconclusive 3 | **red** 4 of 4 ("hidden prompt content extracted") | 4 each |
-| Package rewriting (Step 8) | rewriting | **anomaly** 3 of 3, inconclusive 1 (rate limit) | **red** in pass 1 with the rewritten names visible; red in pass 2 from empty replies only | Receipt 4; ara 2 (pass 3 excluded: fault did not reach it; pass 4: rate limit) |
+| Package rewriting (Step 8) | rewriting | **anomaly** 4 of 4, inconclusive 1 (rate limit) | **red** in passes 1 and 5 with the rewritten names visible; red in pass 2 from empty replies only | Receipt 5; ara 3 (pass 3 excluded: fault did not reach it; pass 4: rate limit) |
 | Package rewriting (Step 8) | no fault | clean 4 of 4 | **red** 1 of 4 | 4 each |
 | Error leakage (Step 9) | no fault | **anomaly** 4 of 4 | green 4 of 4 | 4 each |
 | Stream integrity (Step 10) | no fault | clean 4 of 4 | **red** 4 of 4 | 4 each |
@@ -291,6 +305,14 @@ Why the tools disagree, case by case:
   command returned". The same rule explains api-relay-audit's red in pass 2
   under the rewrite fault and in the rate-limited fourth pass: those reds
   are right by luck, not because a rewrite was seen.
+- **Step 8 in pass 5.** With the fault reaching it, api-relay-audit's table
+  showed `npm install 1odash@4.17.21` and
+  `go get github.com/stretchr/testifyy` (real rewrites), `cargo add serde`
+  unchanged (the relay's rewrite list only matches `serde@`, a limit of the
+  test bed), and an empty reply for `pip install requests==2.31.0`, again
+  scored as a substitution: "3/4 probes rewritten", of which two were
+  actually seen. Receipt reported 6 of 6 pinned commands changed in two
+  attempts.
 - **Step 9.** The unmodified LiteLLM gateway returns the upstream API base
   in a response header on errors. Receipt reports it;
   api-relay-audit's header scan did not flag it. It is a real disclosure by the gateway, but
