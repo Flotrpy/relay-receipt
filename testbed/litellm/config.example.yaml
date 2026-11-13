@@ -1,0 +1,42 @@
+# LiteLLM gateway for the Receipt test bed: an example.
+#
+# Copy this file to config.yaml (ignored by git) and run LiteLLM with it.
+# Configuration only: no custom code runs inside LiteLLM. It puts two
+# hosted inference providers behind one OpenAI-compatible endpoint that the
+# evil relay (testbed/evilrelay) sits in front of.
+#
+# Which providers you use is your choice, and it stays out of the
+# repository: base URLs and keys come from the environment.
+#   PROVIDER_A_BASE_URL, PROVIDER_A_API_KEY  the trusted reference's provider
+#   PROVIDER_B_BASE_URL, PROVIDER_B_API_KEY  a second provider
+# Both must serve an OpenAI-compatible API. If a provider needs LiteLLM's
+# native route instead, change `model:` to that route in your local copy.
+model_list:
+  - model_name: qwen/qwen3.8-27b
+    litellm_params:
+      model: openai/qwen/qwen3.8-27b
+      api_base: os.environ/PROVIDER_A_BASE_URL
+      api_key: os.environ/PROVIDER_A_API_KEY
+  - model_name: openai/gpt-oss-20b
+    litellm_params:
+      model: openai/openai/gpt-oss-20b
+      api_base: os.environ/PROVIDER_A_BASE_URL
+      api_key: os.environ/PROVIDER_A_API_KEY
+  - model_name: openai/gpt-oss-120b
+    litellm_params:
+      model: openai/openai/gpt-oss-120b
+      api_base: os.environ/PROVIDER_A_BASE_URL
+      api_key: os.environ/PROVIDER_A_API_KEY
+  - model_name: provider-b-model
+    litellm_params:
+      model: openai/your-provider-b-model
+      api_base: os.environ/PROVIDER_B_BASE_URL
+      api_key: os.environ/PROVIDER_B_API_KEY
+
+litellm_settings:
+  drop_params: false
+  num_retries: 0
+  telemetry: false
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

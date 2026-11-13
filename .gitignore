@@ -30,3 +30,6 @@ erl_crash.dump
 
 # Test bed results name real providers; they stay local until disclosure is agreed
 /testbed/results/
+
+# Local LiteLLM config names the real providers; only the example is tracked
+/testbed/litellm/config.yaml
