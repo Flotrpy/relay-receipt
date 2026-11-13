@@ -111,8 +111,8 @@ Built before the parity steps because several of them use it.
 
 ### Phase F: test bed
 
-- LiteLLM gateway configuration (configuration only) in front of the free
-  Groq and Gemini tiers.
+- LiteLLM gateway configuration (configuration only) in front of free
+  hosted inference tiers.
 - The evil relay, in Gleam, with five switchable conditions: none, hidden
   prompt, billed padding, hidden model swap, package rewriting.
 - `testbed/run.sh` driving matrices of runs with fixed seeds and a trusted

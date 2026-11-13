@@ -15,7 +15,7 @@ not a safety certificate.
 
 ```text
 receipt audit --url https://relay.example/v1 --model qwen/qwen3.8-27b \
-  --reference-url https://api.groq.com/openai/v1 --reference-model qwen/qwen3.8-27b
+  --reference-url https://trusted-provider.example/v1 --reference-model qwen/qwen3.8-27b
 ```
 
 ## What it checks
