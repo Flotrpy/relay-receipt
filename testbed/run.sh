@@ -3,20 +3,25 @@
 # fault, and keep the JSON reports and traces for the confusion matrix.
 #
 # Requirements: Erlang/OTP, Gleam, a LiteLLM gateway on 127.0.0.1:4000
-# started from testbed/litellm/config.yaml, and network access to the
-# Groq API (the trusted reference). Everything runs on free tiers.
+# started from a local copy of testbed/litellm/config.example.yaml, and
+# network access to the trusted reference. Everything runs on free tiers.
 #
 # Usage: testbed/run.sh <matrix> <out-dir>
 #   matrix a  steps 3,4,5,6,8,9,10,15 under none/inject/pad/swap/rewrite
 #   matrix b  step 17 under none/swap
-#   matrix c  honest controls: Groq direct and Gemini via the gateway
+#   matrix c  honest controls: provider A direct, provider B via the gateway
 #   matrix d  step 16 over two relays that share one gateway
 #   matrix e  head-to-head: api-relay-audit v2.5.0 on the same relay
 #             conditions (set ARA_DIR to its checkout)
 #
+# Providers: REFERENCE_URL is provider A's OpenAI-compatible base URL (the
+# trusted reference and the direct control). GATEWAY_CONTROL_MODEL is the
+# gateway model name that routes to provider B. Neither is written in the
+# repository, so published results can stay anonymous.
+#
 # Keys: the relay accepts any client key, so RECEIPT_API_KEY can be a
-# placeholder. RECEIPT_REFERENCE_KEY must be a Groq key (or be injected by
-# an egress proxy). LITELLM_MASTER_KEY is the gateway's key.
+# placeholder. RECEIPT_REFERENCE_KEY must be a provider A key (or be
+# injected by an egress proxy). LITELLM_MASTER_KEY is the gateway's key.
 set -euo pipefail
 
 matrix="${1:?matrix a|b|c|d}"
@@ -26,7 +31,7 @@ out="$(cd "$out" && pwd)"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 receipt="$root/receipt"
 relay_dir="$root/testbed/evilrelay"
-groq="https://api.groq.com/openai/v1"
+reference="${REFERENCE_URL:?set REFERENCE_URL to the OpenAI-compatible base URL of provider A}"
 
 : "${RECEIPT_API_KEY:=sk-testbed-client-0000000000000000}"
 : "${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY}"
@@ -69,7 +74,7 @@ case "$matrix" in
     for fault in none inject pad swap rewrite; do
       start_relay "$fault" 4100 "openai/gpt-oss-20b"
       audit "a-$fault" "http://127.0.0.1:4100/v1" "$model" 3,4,5,6,8,9,10,15 \
-        --reference-url "$groq" --reference-model "$model"
+        --reference-url "$reference" --reference-model "$model"
       stop_relay
     done
     ;;
@@ -78,23 +83,24 @@ case "$matrix" in
     for fault in swap none; do
       start_relay "$fault" 4100 "openai/gpt-oss-20b"
       audit "b-$fault" "http://127.0.0.1:4100/v1" "$model" 17 \
-        --reference-url "$groq" --reference-model "$model" --rpm 20
+        --reference-url "$reference" --reference-model "$model" --rpm 20
       stop_relay
     done
     ;;
   c)
     # CONTROL_MODEL and CONTROL_STEPS let the direct control move to a
-    # model whose daily free quota is not spent; CONTROL_ONLY=groq|gemini
+    # model whose daily free quota is not spent; CONTROL_ONLY=direct|gateway
     # runs one half.
     model="${CONTROL_MODEL:-openai/gpt-oss-120b}"
     steps="${CONTROL_STEPS:-1,3,4,5,6,7,8,9,10,12,13,14,15}"
-    if [ "${CONTROL_ONLY:-groq}" != "gemini" ]; then
-      RECEIPT_API_KEY="$RECEIPT_REFERENCE_KEY" audit "c-groq-direct" "$groq" "$model" \
-        "$steps" --reference-url "$groq" --reference-model "$model"
+    if [ "${CONTROL_ONLY:-direct}" != "gateway" ]; then
+      RECEIPT_API_KEY="$RECEIPT_REFERENCE_KEY" audit "c-direct" "$reference" "$model" \
+        "$steps" --reference-url "$reference" --reference-model "$model"
     fi
-    if [ "${CONTROL_ONLY:-gemini}" != "groq" ]; then
-      RECEIPT_API_KEY="$LITELLM_MASTER_KEY" audit "c-gemini-gateway" \
-        "http://127.0.0.1:4000/v1" "gemma-4-26b-a4b-it" 3,4,5,6,8,9,10,12,13,14,15
+    if [ "${CONTROL_ONLY:-gateway}" != "direct" ]; then
+      gateway_model="${GATEWAY_CONTROL_MODEL:?set GATEWAY_CONTROL_MODEL to the gateway model for provider B}"
+      RECEIPT_API_KEY="$LITELLM_MASTER_KEY" audit "c-gateway" \
+        "http://127.0.0.1:4000/v1" "$gateway_model" 3,4,5,6,8,9,10,12,13,14,15
     fi
     ;;
   d)

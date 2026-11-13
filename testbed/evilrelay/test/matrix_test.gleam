@@ -15,7 +15,7 @@ const unsure8 = "{\"id\":8,\"status\":\"run\",\"verdict\":\"inconclusive\"}"
 pub fn condition_comes_from_the_file_name_test() {
   assert report("a-rewrite", clean8).condition == "rewrite"
   assert matrix.is_honest("a-none")
-  assert matrix.is_honest("c-groq-direct")
+  assert matrix.is_honest("c-direct")
   assert !matrix.is_honest("a-inject")
 }
 
