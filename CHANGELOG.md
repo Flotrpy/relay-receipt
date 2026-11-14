@@ -160,3 +160,7 @@ Built before the parity steps because several of them use it.
   applied. Both bugs hid the faults from api-relay-audit, which sends
   spaced JSON and prefers `/messages`; the head-to-head was re-run.
   Receipt's own runs were unaffected (compact JSON, chat endpoint).
+- Step 2 now (found in review) runs for format detection when `--only` or `--skip` leaves it
+  out, no `--api-format` is given and a selected step needs chat; before,
+  such runs used the OpenAI format, so an Anthropic-only endpoint could
+  come out inconclusive for the wrong reason.

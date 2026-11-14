@@ -194,3 +194,57 @@ pub fn finished_reports_the_detected_or_forced_format_test() {
     )
   assert forced.api_format == Some(OpenAi)
 }
+
+fn reports_format(ctx: Ctx) {
+  case ctx.target.format {
+    Anthropic -> step.ran(3, Clean, "saw anthropic")
+    OpenAi -> step.ran(3, Inconclusive, "saw openai")
+  }
+}
+
+fn anthropic_connect(_ctx: Ctx) {
+  #(step.ran(2, Informational, "ok"), Some(Anthropic))
+}
+
+pub fn format_is_detected_when_only_excludes_step_two_test() {
+  let runner.Finished(results, format) =
+    runner.run_all(
+      quiet_ctx(),
+      Config(..base_config(), only: [3]),
+      Some(anthropic_connect),
+      [#(3, reports_format)],
+    )
+  assert status_of(results, 2) == #(Run, None)
+  let assert Ok(third) = list.find(results, fn(r) { r.id == 3 })
+  assert third.summary == "saw anthropic"
+  assert format == Some(Anthropic)
+}
+
+pub fn format_is_detected_when_step_two_is_skipped_test() {
+  let runner.Finished(results, _) =
+    runner.run_all(
+      quiet_ctx(),
+      Config(..base_config(), skip: [2]),
+      Some(anthropic_connect),
+      [#(3, reports_format)],
+    )
+  assert status_of(results, 2) == #(Run, None)
+  let assert Ok(third) = list.find(results, fn(r) { r.id == 3 })
+  assert third.summary == "saw anthropic"
+}
+
+pub fn forced_format_or_no_chat_step_leaves_step_two_out_test() {
+  let forced = Config(..base_config(), only: [3], api_format: Some(Anthropic))
+  assert !runner.needs_detection(forced, Some(anthropic_connect), [
+    #(3, reports_format),
+  ])
+  let runner.Finished(results, _) =
+    runner.run_all(quiet_ctx(), forced, Some(anthropic_connect), [
+      #(3, reports_format),
+    ])
+  assert status_of(results, 2) == #(Skipped, Some("not_selected"))
+  let recon_only = Config(..base_config(), only: [1])
+  assert !runner.needs_detection(recon_only, Some(anthropic_connect), [
+    #(1, fn(_) { step.ran(1, Informational, "dns") }),
+  ])
+}

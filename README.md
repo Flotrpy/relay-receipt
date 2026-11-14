@@ -189,7 +189,7 @@ Common options:
 | `--endpoint NAME=URL,MODEL,KEY_VAR` | Another endpoint for Step 16 (repeatable). |
 | `--format json` | JSON report, schema version 1. |
 | `--record trace.jsonl` / `--replay trace.jsonl` | Record every exchange (keys redacted), or rerun an audit offline from a recording. |
-| `--only 3,8,15` / `--skip 7` | Choose steps. |
+| `--only 3,8,15` / `--skip 7` | Choose steps. Step 2 still runs to detect the API format unless `--api-format` is given. |
 | `--rpm 10` | Requests per minute per endpoint (default 20). |
 | `--fail-on MEDIUM` | Exit 3 at or above a rating, for automation. |
 

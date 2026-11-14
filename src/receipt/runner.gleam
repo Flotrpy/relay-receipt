@@ -123,6 +123,28 @@ fn announce(ctx: Ctx, id: Int, text: String) -> Nil {
   ctx.progress("[" <> int.to_string(id) <> "/17] " <> title <> ": " <> text)
 }
 
+/// Whether Step 2 must run for format detection although the user left
+/// it out: no format was forced, Step 2 is available, and some other
+/// selected step needs chat.
+pub fn needs_detection(
+  config: Config,
+  connect: Option(ConnectFn),
+  steps: List(#(Int, StepFn)),
+) -> Bool {
+  let left_out = case gate(config, 2, connect != None) {
+    Some(result) ->
+      result.reason == Some("not_selected")
+      || result.reason == Some("user_skipped")
+    None -> False
+  }
+  config.api_format == None
+  && connect != None
+  && left_out
+  && list.any(needs_chat, fn(id) {
+    gate(config, id, list.key_find(steps, id) != Error(Nil)) == None
+  })
+}
+
 /// Run the whole pipeline. `steps` holds the implemented steps other than
 /// Step 2, which is passed separately because it also detects the format.
 pub fn run_all(
@@ -131,6 +153,7 @@ pub fn run_all(
   connect: Option(ConnectFn),
   steps: List(#(Int, StepFn)),
 ) -> Finished {
+  let detect = needs_detection(config, connect, steps)
   let #(results, final_ctx, connected) =
     catalog.all()
     |> list.fold(#([], ctx, True), fn(acc, info) {
@@ -142,6 +165,10 @@ pub fn run_all(
         _ -> step_fn != Error(Nil)
       }
       let gated = case gate(config, id, implemented) {
+        // Step 2 left out by the user still runs when a selected step
+        // needs chat and no format was forced: it is the only place the
+        // format is detected.
+        Some(_) if id == 2 && detect -> None
         Some(result) -> Some(result)
         None ->
           case !connected && list.contains(needs_chat, id) {

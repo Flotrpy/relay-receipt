@@ -46,7 +46,8 @@ Extra endpoints for Step 16 (repeatable):
 Run:
   --profile <P>             general | full (default general)
   --skip <N,N,...>          Steps to turn off
-  --only <N,N,...>          Run only these steps
+  --only <N,N,...>          Run only these steps (Step 2 still runs to
+                            detect the format unless --api-format is set)
   --seed <INT>              Seed for shuffles and permutation tests
   --rpm <INT>               Requests per minute per endpoint (default 20)
   --latency-probes <INT>    Probes in Step 13, 3 to 50 (default 10)
