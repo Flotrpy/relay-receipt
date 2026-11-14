@@ -1,5 +1,11 @@
 # Receipt
 
+[![CI](https://github.com/Flotrpy/relay-receipt/actions/workflows/ci.yml/badge.svg)](https://github.com/Flotrpy/relay-receipt/actions/workflows/ci.yml)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](./LICENSE)
+[![Gleam](https://img.shields.io/badge/Gleam-1.19-ffaff3?logo=gleam&logoColor=black)](https://gleam.run)
+[![Erlang/OTP 27+](https://img.shields.io/badge/Erlang%2FOTP-27%2B-a90533?logo=erlang&logoColor=white)](https://www.erlang.org)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org)
+
 **A local security auditor for AI API relays** — the resellers, gateways and
 proxies that sell access to large language models.
 
