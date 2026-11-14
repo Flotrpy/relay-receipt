@@ -155,9 +155,8 @@ The full list, per step, is in [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md).
 
 Receipt is a single escript. It needs Erlang/OTP 27 or newer.
 
-Download `receipt` from the latest
-[release](https://github.com/Flotrpy/relay-receipt/releases), check it
-against `receipt.sha256`, and make it executable. Or build it:
+There is no published release yet, so build it from source. You also
+need [Gleam](https://gleam.run) 1.19 or newer:
 
 ```bash
 git clone https://github.com/Flotrpy/relay-receipt && cd relay-receipt
