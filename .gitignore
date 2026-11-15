@@ -1,0 +1,35 @@
+# Gleam / BEAM build output
+/build/
+erl_crash.dump
+*.beam
+*.ez
+
+# Built escript
+/receipt
+
+# Local run output: reports and traces can contain private relay URLs,
+# model responses and other sensitive evidence. Never commit them.
+/reports/
+/traces/
+*.trace.jsonl
+!test/fixtures/**/*.trace.jsonl
+!docs/examples/**
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Test bed build output
+/testbed/evilrelay/build/
+
+# Test bed results name real providers; they stay local until disclosure is agreed
+/testbed/results/
+
+# Local LiteLLM config names the real providers; only the example is tracked
+/testbed/litellm/config.yaml
